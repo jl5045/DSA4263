@@ -1089,10 +1089,22 @@ def export_featured_datasets(
         )
 
 
+def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
+    """Drop columns that are not usable for modeling as per Kaggle rules."""
+    cols_to_drop = ['oldbalanceOrg', 'newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
+    # Check which columns exist before trying to drop
+    cols_exist = [col for col in cols_to_drop if col in df.columns]
+    if cols_exist:
+        df = df.drop(columns=cols_exist)
+        print(f"Dropped columns from {split_name}: {cols_exist}")
+    return df
+
+
 def build_default_pipeline() -> List[FeatureStep]:
     """Return the ordered list of feature functions plus their kwargs."""
 
     return [
+        (drop_unusable_columns, {}),
         (transaction_velocity, {}),
         (add_avg_amount_features, {}),
         (add_receiver_flow_features, {}),
@@ -1178,6 +1190,7 @@ if __name__ == "__main__":
 __all__ = [
     'create_split_frames',
     'apply_to_splits',
+    'drop_unusable_columns',
     'transaction_velocity',
     'add_avg_amount_features',
     'add_receiver_flow_features',
@@ -1198,4 +1211,5 @@ __all__ = [
     'export_featured_datasets',
     'build_default_pipeline',
     'run_full_feature_pipeline',
+    'drop_unusable_columns',
 ]
