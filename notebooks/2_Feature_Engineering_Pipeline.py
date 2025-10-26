@@ -1067,6 +1067,19 @@ def export_featured_datasets(
         print(f"{split_name}: merchants as origin shape {merchants_orig.shape}")
 
         filtered_df = df[~df['nameDest'].str.contains('M')]
+        
+        print(f"\\n--- {split_name}: NON-Merchant Stats ---")
+        if not filtered_df.empty:
+            print(
+                f"{split_name}: NON-merchants isFraud unique: {filtered_df['isFraud'].unique()}"
+            )
+            if 'isFlaggedFraud' in filtered_df.columns:
+                print(
+                    f"{split_name}: NON-merchants isFlaggedFraud unique: "
+                    f"{filtered_df['isFlaggedFraud'].unique()}"
+                )
+        print(f"{split_name}: NON-merchants as destination shape {filtered_df.shape}")
+
         without_path = os.path.join(
             without_merchants_dir, f'FE_{split_name.lower()}_without_merchants.csv'
         )
@@ -1145,10 +1158,16 @@ def main():
     run_full_feature_pipeline(split_frames, export=True, plots_dir=plots_dir)
     print("Feature engineering pipeline complete.")
 
-    print("\n--- Final Columns ---")
+    print("\n--- Final Columns (with merchants) ---")
     for split_name, df in split_frames.items():
         print(f"\nColumns for {split_name} data:")
         print(df.columns)
+
+    print("\n--- Final Columns (without merchants) ---")
+    for split_name, df in split_frames.items():
+        filtered_df = df[~df['nameDest'].str.contains('M')]
+        print(f"\nColumns for {split_name} data (without merchants):")
+        print(filtered_df.columns)
 
     
 
