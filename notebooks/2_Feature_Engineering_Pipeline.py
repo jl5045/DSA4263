@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import igraph as ig
+from collections import defaultdict
+import igraph as ig
+from collections import defaultdict
 
 try:  # Notebook runtime will have display, but set a safe fallback.
     from IPython.display import display
@@ -1034,6 +1038,131 @@ def add_unique_partner_percentages(df: pd.DataFrame, split_name: str, plots_dir:
         
     return df
 
+def build_edgelist(edgelist: pd.DataFrame) -> pd.DataFrame:
+    if edgelist.empty:
+        return pd.DataFrame(columns=["nameOrig","nameDest","w_amount","w_count"])
+    agg = (edgelist
+           .groupby(["nameOrig","nameDest"])
+           .agg(w_amount=("amount","sum"),
+                w_count =("amount","size"))
+           .reset_index())
+    return agg
+
+def compute_centralities(agg: pd.DataFrame) -> dict:
+    if agg.empty:
+        return {
+            "pr": defaultdict(float), # PageRank 
+            "outdeg_amt": defaultdict(float),
+            "indeg_amt": defaultdict(float),
+            "outdeg_cnt": defaultdict(float),
+            "indeg_cnt": defaultdict(float),
+        }
+
+    # --- build igraph ---
+    nodes = pd.Index(pd.concat([agg["nameOrig"], agg["nameDest"]]).unique())
+    node_to_idx = {n: i for i, n in enumerate(nodes)}
+
+    g = ig.Graph(directed=True)
+    g.add_vertices(len(nodes))
+    g.vs["name"] = list(nodes)
+    edges_idx = list(zip(agg["nameOrig"].map(node_to_idx),
+                         agg["nameDest"].map(node_to_idx)))
+    g.add_edges(edges_idx)
+
+    g.es["w_amount"] = agg["w_amount"].astype(float).tolist()
+    g.es["w_count"]  = agg["w_count"].astype(float).tolist()
+
+    # --- centralities ---
+    pr = g.pagerank(weights="w_amount")
+    outdeg_amt = g.strength(mode="OUT", weights="w_amount")
+    indeg_amt  = g.strength(mode="IN",  weights="w_amount")
+    outdeg_cnt = g.strength(mode="OUT", weights="w_count")
+    indeg_cnt  = g.strength(mode="IN",  weights="w_count")
+
+    names = g.vs["name"]
+    return {
+        "pr": dict(zip(names, pr)),
+        "outdeg_amt": dict(zip(names, outdeg_amt)),
+        "indeg_amt":  dict(zip(names, indeg_amt)),
+        "outdeg_cnt": dict(zip(names, outdeg_cnt)),
+        "indeg_cnt":  dict(zip(names, indeg_cnt)),
+    }
+
+def add_network_features(
+        df: pd.DataFrame,
+        split_name: str, 
+        block_size: int = 10, 
+        window_size: int = 50,
+        **kwargs
+    ) -> pd.DataFrame:
+    # e.g. For each block of 10 time steps, use the previous 50 time steps of transactions to compute graph features.
+
+    df = df.copy()
+    df = df.sort_values("step").reset_index(drop=True)
+    df["pair_key"] = df["nameOrig"] + "→" + df["nameDest"]
+    df["block"] = (df["step"] // block_size).astype(int)
+
+    # placeholder columns
+    for col in [
+        "sender_pr","receiver_pr",
+        "sender_outdeg_amt","sender_indeg_amt",
+        "receiver_outdeg_amt","receiver_indeg_amt",
+        "sender_outdeg_cnt","sender_indeg_cnt",
+        "receiver_outdeg_cnt","receiver_indeg_cnt",
+        "pagerank_diff","outdeg_amt_diff","indeg_amt_diff",
+        "outdeg_cnt_diff","indeg_cnt_diff"
+    ]:
+        df[col] = 0.0
+
+    for b in sorted(df["block"].unique()):
+        block_mask = df["block"] == b
+        block_min_step = int(df.loc[block_mask, "step"].min())
+        hist_mask = (df["step"] < block_min_step) & (df["step"] >= block_min_step - window_size)
+        hist_edges = df.loc[hist_mask, ["nameOrig","nameDest","amount","step"]]
+        agg = build_edgelist(hist_edges)
+        cent = compute_centralities(agg)
+
+        idx = df.index[block_mask]
+        df.loc[idx, "sender_pr"] = df.loc[idx, "nameOrig"].map(cent["pr"]).fillna(0.0)
+        df.loc[idx, "receiver_pr"] = df.loc[idx, "nameDest"].map(cent["pr"]).fillna(0.0)
+
+        df.loc[idx, "sender_outdeg_amt"] = df.loc[idx, "nameOrig"].map(cent["outdeg_amt"]).fillna(0.0)
+        df.loc[idx, "sender_indeg_amt"]  = df.loc[idx, "nameOrig"].map(cent["indeg_amt"]).fillna(0.0)
+        df.loc[idx, "receiver_outdeg_amt"] = df.loc[idx, "nameDest"].map(cent["outdeg_amt"]).fillna(0.0)
+        df.loc[idx, "receiver_indeg_amt"]  = df.loc[idx, "nameDest"].map(cent["indeg_amt"]).fillna(0.0)
+
+        df.loc[idx, "sender_outdeg_cnt"] = df.loc[idx, "nameOrig"].map(cent["outdeg_cnt"]).fillna(0.0)
+        df.loc[idx, "sender_indeg_cnt"]  = df.loc[idx, "nameOrig"].map(cent["indeg_cnt"]).fillna(0.0)
+        df.loc[idx, "receiver_outdeg_cnt"] = df.loc[idx, "nameDest"].map(cent["outdeg_cnt"]).fillna(0.0)
+        df.loc[idx, "receiver_indeg_cnt"]  = df.loc[idx, "nameDest"].map(cent["indeg_cnt"]).fillna(0.0)
+
+        df.loc[idx, "pagerank_diff"]  = df.loc[idx, "sender_pr"] - df.loc[idx, "receiver_pr"]
+        df.loc[idx, "outdeg_amt_diff"] = df.loc[idx, "sender_outdeg_amt"] - df.loc[idx, "receiver_outdeg_amt"]
+        df.loc[idx, "indeg_amt_diff"]  = df.loc[idx, "sender_indeg_amt"]  - df.loc[idx, "receiver_indeg_amt"]
+        df.loc[idx, "outdeg_cnt_diff"] = df.loc[idx, "sender_outdeg_cnt"] - df.loc[idx, "receiver_outdeg_cnt"]
+        df.loc[idx, "indeg_cnt_diff"]  = df.loc[idx, "sender_indeg_cnt"]  - df.loc[idx, "receiver_indeg_cnt"]
+
+    return df
+
+def drop_final_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop final set of columns before saving the dataset."""
+    cols_to_drop = [
+        # Potential data leakage
+        'sender_has_fraud', 'receiver_has_fraud', 'fraudRatioAmongReceivers', 'fraudRatioAmongSenders',
+        
+        # Covered by transaction_sequence
+        'prev_type_1', 'prev_type_2', 'prev_type_3', 'prev_type_4', 'prev_type_5', 
+        'prev_type_1_encoded', 'prev_type_2_encoded', 'prev_type_3_encoded', 'prev_type_4_encoded', 'prev_type_5_encoded',
+
+        # Unsure
+        'fraction_CASH_IN', 'fraction_CASH_OUT', 'fraction_DEBIT', 'fraction_PAYMENT', 'fraction_TRANSFER',
+        'fraction_CASH_IN_recv', 'fraction_CASH_OUT_recv', 'fraction_DEBIT_recv', 'fraction_PAYMENT_recv', 'fraction_TRANSFER_recv',
+        'amountTypeRatio',
+    ]
+    # Drop the specified columns, ignoring errors if a column doesn't exist
+    df = df.drop(columns=cols_to_drop, errors='ignore')
+    return df
+
 
 def export_featured_datasets(
     split_frames: SplitMap,
@@ -1046,40 +1175,16 @@ def export_featured_datasets(
     os.makedirs(without_merchants_dir, exist_ok=True)
 
     for split_name, df in split_frames.items():
+        # Drop columns before saving
+        df_to_save = drop_final_columns(df.copy())
+
         with_path = os.path.join(
             with_merchants_dir, f'FE_{split_name.lower()}_with_merchants.csv'
         )
-        df.to_csv(with_path, index=False)
-        print(f"Saved {split_name} (with merchants) to {with_path} | shape={df.shape}")
+        df_to_save.to_csv(with_path, index=False)
+        print(f"Saved {split_name} (with merchants) to {with_path} | shape={df_to_save.shape}")
 
-        merchants_only = df[df['nameDest'].str.contains('M')]
-        if not merchants_only.empty:
-            print(
-                f"{split_name}: merchants isFraud unique: {merchants_only['isFraud'].unique()}"
-            )
-            if 'isFlaggedFraud' in merchants_only.columns:
-                print(
-                    f"{split_name}: merchants isFlaggedFraud unique: "
-                    f"{merchants_only['isFlaggedFraud'].unique()}"
-                )
-
-        merchants_orig = df[df['nameOrig'].str.contains('M')]
-        print(f"{split_name}: merchants as origin shape {merchants_orig.shape}")
-
-        filtered_df = df[~df['nameDest'].str.contains('M')]
-        
-        print(f"\\n--- {split_name}: NON-Merchant Stats ---")
-        if not filtered_df.empty:
-            print(
-                f"{split_name}: NON-merchants isFraud unique: {filtered_df['isFraud'].unique()}"
-            )
-            if 'isFlaggedFraud' in filtered_df.columns:
-                print(
-                    f"{split_name}: NON-merchants isFlaggedFraud unique: "
-                    f"{filtered_df['isFlaggedFraud'].unique()}"
-                )
-        print(f"{split_name}: NON-merchants as destination shape {filtered_df.shape}")
-
+        filtered_df = df_to_save[~df_to_save['nameDest'].str.contains('M')]
         without_path = os.path.join(
             without_merchants_dir, f'FE_{split_name.lower()}_without_merchants.csv'
         )
@@ -1088,11 +1193,75 @@ def export_featured_datasets(
             f"Saved {split_name} (without merchants) to {without_path} | shape={filtered_df.shape}"
         )
 
+def main():
+    """Load data from predefined paths, run feature pipeline, and export results."""
+    
+    # Define input paths
+    train_path = "./data/splits/train.csv"
+    test_path = "./data/splits/test.csv"
+    val_path = "./data/splits/val.csv"
+
+    # Define output paths
+    plots_dir = "./plots"
+    with_merchants_dir = "./data/engineered(withMerchants)"
+    without_merchants_dir = "./data/engineered(withoutMerchants)"
+
+    # Create output directories if they don't exist
+    os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(with_merchants_dir, exist_ok=True)
+    os.makedirs(without_merchants_dir, exist_ok=True)
+
+    print(f"Loading training data from: {train_path}")
+    print(f"Loading test data from: {test_path}")
+    print(f"Loading validation data from: {val_path}")
+    
+    df_train = pd.read_csv(train_path)
+    df_test = pd.read_csv(test_path)
+    df_val = pd.read_csv(val_path)
+
+    split_frames = create_split_frames(df_train, df_test, df_val)
+    
+    print("\\nStarting feature engineering pipeline...")
+    run_full_feature_pipeline(
+        split_frames, 
+        export=True, 
+        plots_dir=plots_dir,
+        with_merchants_dir=with_merchants_dir,
+        without_merchants_dir=without_merchants_dir
+    )
+    print("Feature engineering pipeline complete.")
+
+    print("\n--- Dropping final columns ---")
+    for split_name in split_frames:
+        split_frames[split_name] = drop_final_columns(split_frames[split_name])
+
+    print("\n--- Final Columns (with merchants) ---")
+    for split_name, df in split_frames.items():
+        print(f"\nColumns for {split_name} data:")
+        print(df.columns)
+
+    print("\n--- Final Columns (without merchants) ---")
+    for split_name, df in split_frames.items():
+        filtered_df = df[~df['nameDest'].str.contains('M')]
+        print(f"\nColumns for {split_name} data (without merchants):")
+        print(filtered_df.columns)
+
+def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
+    """Drop columns that are not usable for modeling as per Kaggle rules."""
+    cols_to_drop = ['oldbalanceOrg', 'newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
+    # Check which columns exist before trying to drop
+    cols_exist = [col for col in cols_to_drop if col in df.columns]
+    if cols_exist:
+        df = df.drop(columns=cols_exist)
+        print(f"Dropped columns from {split_name}: {cols_exist}")
+    return df
+
 
 def build_default_pipeline() -> List[FeatureStep]:
     """Return the ordered list of feature functions plus their kwargs."""
 
     return [
+        (drop_unusable_columns, {}),
         (transaction_velocity, {}),
         (add_avg_amount_features, {}),
         (add_receiver_flow_features, {}),
@@ -1110,6 +1279,7 @@ def build_default_pipeline() -> List[FeatureStep]:
         (add_forwarding_features, {}),
         (add_pair_frequency_features, {}),
         (add_unique_partner_percentages, {}),
+        (add_network_features, {"block_size": 12, "window_size": 48}),
     ]
 
 
@@ -1158,6 +1328,10 @@ def main():
     run_full_feature_pipeline(split_frames, export=True, plots_dir=plots_dir)
     print("Feature engineering pipeline complete.")
 
+    print("\n--- Dropping final columns ---")
+    for split_name in split_frames:
+        split_frames[split_name] = drop_final_columns(split_frames[split_name])
+
     print("\n--- Final Columns (with merchants) ---")
     for split_name, df in split_frames.items():
         print(f"\nColumns for {split_name} data:")
@@ -1178,6 +1352,7 @@ if __name__ == "__main__":
 __all__ = [
     'create_split_frames',
     'apply_to_splits',
+    'drop_unusable_columns',
     'transaction_velocity',
     'add_avg_amount_features',
     'add_receiver_flow_features',
@@ -1195,7 +1370,9 @@ __all__ = [
     'add_forwarding_features',
     'add_pair_frequency_features',
     'add_unique_partner_percentages',
+    'add_network_features',
     'export_featured_datasets',
     'build_default_pipeline',
     'run_full_feature_pipeline',
+    'drop_unusable_columns'
 ]
