@@ -1038,52 +1038,41 @@ def add_unique_partner_percentages(df: pd.DataFrame, split_name: str, plots_dir:
         
     return df
 
-
-def prep_network_df(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter for relevant transaction types and prepare for graph construction."""
-    TX_KEEP = {"TRANSFER", "CASH_OUT"}
-    df_net = df.loc[df["type"].isin(TX_KEEP)].copy()
-    # Sorting is crucial for the rolling window logic
-    df_net = df_net.sort_values("step")
-    df_net["u"] = df_net["nameOrig"]
-    df_net["v"] = df_net["nameDest"]
-    return df_net
-
-
 def build_edgelist(edgelist: pd.DataFrame) -> pd.DataFrame:
-    """Aggregate multiple transactions into a single edge."""
     if edgelist.empty:
-        return pd.DataFrame(columns=["u","v","w_amount","w_count"])
+        return pd.DataFrame(columns=["nameOrig","nameDest","w_amount","w_count"])
     agg = (edgelist
-           .groupby(["u","v"])
+           .groupby(["nameOrig","nameDest"])
            .agg(w_amount=("amount","sum"),
                 w_count =("amount","size"))
            .reset_index())
     return agg
 
 def compute_centralities(agg: pd.DataFrame) -> dict:
-    """Build graph and compute centrality measures."""
     if agg.empty:
         return {
-            "pr": defaultdict(float),
+            "pr": defaultdict(float), # PageRank 
             "outdeg_amt": defaultdict(float),
             "indeg_amt": defaultdict(float),
             "outdeg_cnt": defaultdict(float),
             "indeg_cnt": defaultdict(float),
         }
 
-    nodes = pd.Index(pd.concat([agg["u"], agg["v"]]).unique())
+    # --- build igraph ---
+    nodes = pd.Index(pd.concat([agg["nameOrig"], agg["nameDest"]]).unique())
     node_to_idx = {n: i for i, n in enumerate(nodes)}
 
     g = ig.Graph(directed=True)
     g.add_vertices(len(nodes))
     g.vs["name"] = list(nodes)
-    edges_idx = list(zip(agg["u"].map(node_to_idx), agg["v"].map(node_to_idx)))
+    edges_idx = list(zip(agg["nameOrig"].map(node_to_idx),
+                         agg["nameDest"].map(node_to_idx)))
     g.add_edges(edges_idx)
 
     g.es["w_amount"] = agg["w_amount"].astype(float).tolist()
     g.es["w_count"]  = agg["w_count"].astype(float).tolist()
 
+    # --- centralities ---
     pr = g.pagerank(weights="w_amount")
     outdeg_amt = g.strength(mode="OUT", weights="w_amount")
     indeg_amt  = g.strength(mode="IN",  weights="w_amount")
@@ -1099,63 +1088,61 @@ def compute_centralities(agg: pd.DataFrame) -> dict:
         "indeg_cnt":  dict(zip(names, indeg_cnt)),
     }
 
-def add_network_features(df: pd.DataFrame, split_name: str, block_size: int = 10, window_size: int = 50, **kwargs) -> pd.DataFrame:
-    """Master function to add all rolling-window network-based features."""
-    print(f"Adding network features for {split_name}...")
-    
-    # Prepare the dataframe for network analysis
-    network_df = prep_network_df(df)
-    
-    # Initialize placeholder columns in the original dataframe
-    feature_cols = [
-        "sender_pr", "receiver_pr",
-        "sender_outdeg_amt", "sender_indeg_amt", "receiver_outdeg_amt", "receiver_indeg_amt",
-        "sender_outdeg_cnt", "sender_indeg_cnt", "receiver_outdeg_cnt", "receiver_indeg_cnt",
-        "pagerank_diff", "outdeg_amt_diff", "indeg_amt_diff", "outdeg_cnt_diff", "indeg_cnt_diff",
-    ]
-    for col in feature_cols:
+def add_network_features(
+        df: pd.DataFrame,
+        split_name: str, 
+        block_size: int = 10, 
+        window_size: int = 50,
+        **kwargs
+    ) -> pd.DataFrame:
+    # e.g. For each block of 10 time steps, use the previous 50 time steps of transactions to compute graph features.
+
+    df = df.copy()
+    df = df.sort_values("step").reset_index(drop=True)
+    df["pair_key"] = df["nameOrig"] + "→" + df["nameDest"]
+    df["block"] = (df["step"] // block_size).astype(int)
+
+    # placeholder columns
+    for col in [
+        "sender_pr","receiver_pr",
+        "sender_outdeg_amt","sender_indeg_amt",
+        "receiver_outdeg_amt","receiver_indeg_amt",
+        "sender_outdeg_cnt","sender_indeg_cnt",
+        "receiver_outdeg_cnt","receiver_indeg_cnt",
+        "pagerank_diff","outdeg_amt_diff","indeg_amt_diff",
+        "outdeg_cnt_diff","indeg_cnt_diff"
+    ]:
         df[col] = 0.0
 
-    network_df["block"] = (network_df["step"] // block_size).astype(int)
-
-    for b in sorted(network_df["block"].unique()):
-        block_mask = network_df["block"] == b
-        block_min_step = int(network_df.loc[block_mask, "step"].min())
-        
-        hist_mask = (network_df["step"] < block_min_step) & (network_df["step"] >= block_min_step - window_size)
-        hist_edges = network_df.loc[hist_mask, ["u", "v", "amount"]]
-        
+    for b in sorted(df["block"].unique()):
+        block_mask = df["block"] == b
+        block_min_step = int(df.loc[block_mask, "step"].min())
+        hist_mask = (df["step"] < block_min_step) & (df["step"] >= block_min_step - window_size)
+        hist_edges = df.loc[hist_mask, ["nameOrig","nameDest","amount","step"]]
         agg = build_edgelist(hist_edges)
         cent = compute_centralities(agg)
 
-        # Get the original indices from the main df that correspond to the current block
-        original_indices = network_df.index[block_mask]
+        idx = df.index[block_mask]
+        df.loc[idx, "sender_pr"] = df.loc[idx, "nameOrig"].map(cent["pr"]).fillna(0.0)
+        df.loc[idx, "receiver_pr"] = df.loc[idx, "nameDest"].map(cent["pr"]).fillna(0.0)
 
-        # Map centralities back to the original dataframe using the correct indices
-        df.loc[original_indices, "sender_pr"] = network_df.loc[original_indices, "u"].map(cent["pr"]).fillna(0.0)
-        df.loc[original_indices, "receiver_pr"] = network_df.loc[original_indices, "v"].map(cent["pr"]).fillna(0.0)
+        df.loc[idx, "sender_outdeg_amt"] = df.loc[idx, "nameOrig"].map(cent["outdeg_amt"]).fillna(0.0)
+        df.loc[idx, "sender_indeg_amt"]  = df.loc[idx, "nameOrig"].map(cent["indeg_amt"]).fillna(0.0)
+        df.loc[idx, "receiver_outdeg_amt"] = df.loc[idx, "nameDest"].map(cent["outdeg_amt"]).fillna(0.0)
+        df.loc[idx, "receiver_indeg_amt"]  = df.loc[idx, "nameDest"].map(cent["indeg_amt"]).fillna(0.0)
 
-        df.loc[original_indices, "sender_outdeg_amt"] = network_df.loc[original_indices, "u"].map(cent["outdeg_amt"]).fillna(0.0)
-        df.loc[original_indices, "sender_indeg_amt"]  = network_df.loc[original_indices, "u"].map(cent["indeg_amt"]).fillna(0.0)
-        df.loc[original_indices, "receiver_outdeg_amt"] = network_df.loc[original_indices, "v"].map(cent["outdeg_amt"]).fillna(0.0)
-        df.loc[original_indices, "receiver_indeg_amt"]  = network_df.loc[original_indices, "v"].map(cent["indeg_amt"]).fillna(0.0)
+        df.loc[idx, "sender_outdeg_cnt"] = df.loc[idx, "nameOrig"].map(cent["outdeg_cnt"]).fillna(0.0)
+        df.loc[idx, "sender_indeg_cnt"]  = df.loc[idx, "nameOrig"].map(cent["indeg_cnt"]).fillna(0.0)
+        df.loc[idx, "receiver_outdeg_cnt"] = df.loc[idx, "nameDest"].map(cent["outdeg_cnt"]).fillna(0.0)
+        df.loc[idx, "receiver_indeg_cnt"]  = df.loc[idx, "nameDest"].map(cent["indeg_cnt"]).fillna(0.0)
 
-        df.loc[original_indices, "sender_outdeg_cnt"] = network_df.loc[original_indices, "u"].map(cent["outdeg_cnt"]).fillna(0.0)
-        df.loc[original_indices, "sender_indeg_cnt"]  = network_df.loc[original_indices, "u"].map(cent["indeg_cnt"]).fillna(0.0)
-        df.loc[original_indices, "receiver_outdeg_cnt"] = network_df.loc[original_indices, "v"].map(cent["outdeg_cnt"]).fillna(0.0)
-        df.loc[original_indices, "receiver_indeg_cnt"]  = network_df.loc[original_indices, "v"].map(cent["indeg_cnt"]).fillna(0.0)
-
-        # Calculate diff features
-        df.loc[original_indices, "pagerank_diff"]  = df.loc[original_indices, "sender_pr"] - df.loc[original_indices, "receiver_pr"]
-        df.loc[original_indices, "outdeg_amt_diff"] = df.loc[original_indices, "sender_outdeg_amt"] - df.loc[original_indices, "receiver_outdeg_amt"]
-        df.loc[original_indices, "indeg_amt_diff"]  = df.loc[original_indices, "sender_indeg_amt"]  - df.loc[original_indices, "receiver_indeg_amt"]
-        df.loc[original_indices, "outdeg_cnt_diff"] = df.loc[original_indices, "sender_outdeg_cnt"] - df.loc[original_indices, "receiver_outdeg_cnt"]
-        df.loc[original_indices, "indeg_cnt_diff"]  = df.loc[original_indices, "sender_indeg_cnt"]  - df.loc[original_indices, "receiver_indeg_cnt"]
+        df.loc[idx, "pagerank_diff"]  = df.loc[idx, "sender_pr"] - df.loc[idx, "receiver_pr"]
+        df.loc[idx, "outdeg_amt_diff"] = df.loc[idx, "sender_outdeg_amt"] - df.loc[idx, "receiver_outdeg_amt"]
+        df.loc[idx, "indeg_amt_diff"]  = df.loc[idx, "sender_indeg_amt"]  - df.loc[idx, "receiver_indeg_amt"]
+        df.loc[idx, "outdeg_cnt_diff"] = df.loc[idx, "sender_outdeg_cnt"] - df.loc[idx, "receiver_outdeg_cnt"]
+        df.loc[idx, "indeg_cnt_diff"]  = df.loc[idx, "sender_indeg_cnt"]  - df.loc[idx, "receiver_indeg_cnt"]
 
     return df
-
-
-
 
 def drop_final_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Drop final set of columns before saving the dataset."""
@@ -1292,7 +1279,7 @@ def build_default_pipeline() -> List[FeatureStep]:
         (add_forwarding_features, {}),
         (add_pair_frequency_features, {}),
         (add_unique_partner_percentages, {}),
-        (add_network_features, {"block_size": 6, "window_size": 48}),
+        (add_network_features, {"block_size": 12, "window_size": 48}),
     ]
 
 
