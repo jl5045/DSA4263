@@ -11,7 +11,7 @@ st.set_page_config(
 st.title("📊 EDA Hypotheses: Visual Validation")
 
 # --- Configuration ---
-PLOTS_DIR = Path("data/processed/eda/plots")
+PLOTS_DIR = Path("plots")
 
 # --- Main Page Logic ---
 if not PLOTS_DIR.exists() or not any(PLOTS_DIR.iterdir()):
@@ -26,12 +26,9 @@ st.markdown("---")
 # --- Helper to display plots ---
 def display_plot(header, plot_filenames, conclusion_text, conclusion_status="success"):
     st.header(header)
-    
     if isinstance(plot_filenames, str):
         plot_filenames = [plot_filenames]
-        
     cols = st.columns(len(plot_filenames))
-    
     for i, filename in enumerate(plot_filenames):
         plot_path = PLOTS_DIR / filename
         if plot_path.exists():
@@ -45,7 +42,6 @@ def display_plot(header, plot_filenames, conclusion_text, conclusion_status="suc
         else:
             with cols[i]:
                 st.warning(f"Plot not found: {filename}")
-
     if conclusion_status == "success":
         st.success(conclusion_text)
     elif conclusion_status == "error":
@@ -56,47 +52,35 @@ def display_plot(header, plot_filenames, conclusion_text, conclusion_status="suc
 
 # --- Display Hypotheses and Plots ---
 
+# --- Display Hypotheses and Plots ---
+
 display_plot(
     "Hypothesis: Fraud is often concentrated in TRANSFER and CASH_OUT.",
-    "1_fraud_rate_by_type.png",
-    "**Conclusion: True.** As shown in the Fraud Rate by Transaction Type Graph in the EDA, fraud is indeed concentrated in `TRANSFER` and `CASH_OUT` transactions."
+    ["eda_transaction_type_counts.png", "eda_fraud_rate_by_transaction_type.png"],
+    "**Conclusion: True.** As shown in the Fraud Rate by Transaction Type Graph, fraud is indeed concentrated in `TRANSFER` and `CASH_OUT` transactions."
 )
 
 display_plot(
     "Hypothesis: Fraud transactions involve unusually high amounts to maximise gains.",
-    ["2_amount_distribution.png", "3_fraud_prob_by_amount.png"],
-    "**Conclusion: True.** While non-fraud has more outliers in the simple distribution, the Fraud Probability Across Transactions Amount Ranges plot shows that fraud is indeed most probable at the highest amounts."
+    "eda_transaction_amounts_fraud_vs_nonfraud.png",
+    "**Conclusion: Partially True.** The boxplot shows that while non-fraudulent transactions have more extreme high-value outliers, the overall distribution for fraudulent transactions is shifted higher. This indicates that while not all high-value transactions are fraudulent, a fraudulent transaction is more likely to involve a large amount."
 )
 
 display_plot(
-    "Hypothesis: Accounts exhibiting unusually high hourly averages are often correlated with fraud.",
-    "8_hourly_averages.png",
-    "**Conclusion: True.** The box plot shows that the distribution of average hourly transaction amounts is noticeably higher for fraudulent senders, supporting the hypothesis."
+    "Hypothesis: Fraud follows predictable temporal patterns.",
+    "eda_fraud_count_over_time_steps.png",
+    "**Conclusion: True.** The plot of fraud count over time shows clear fluctuations, indicating that fraud incidents are not random and may follow specific time-based patterns that could be captured by time-related features."
 )
 
 display_plot(
-    "Hypothesis: Fraudulent users often execute many transactions in short time spans.",
-    "4_transaction_recency.png",
-    "**Conclusion: False.** The Transaction Recency plot shows that the distribution of time between transactions is very similar for both fraudulent and non-fraudulent users. This contradicts the idea that fraudsters transact in rapid bursts.",
-    conclusion_status="error"
+    "Hypothesis: A small number of senders are responsible for a large portion of transaction volume.",
+    "eda_top10_senders_total_amount.png",
+    "**Conclusion: True.** The bar chart shows the top 10 senders by total transaction amount, highlighting that a few accounts move significant funds, which could be a useful feature for anomaly detection."
 )
 
 display_plot(
-    "Hypothesis: Fraud follows predictable patterns like `TRANSFER` -> `CASH_OUT`.",
-    "5_sequence_pattern.png",
-    "**Conclusion: True.** The bar chart shows a very high occurrence of the `TRANSFER` -> `CASH_OUT` sequence in fraudulent transactions compared to non-fraudulent ones."
-)
-
-display_plot(
-    "Hypothesis: Fraudsters have many unique connections, unlike regular users.",
-    "6_pct_unique_dest.png",
-    "**Conclusion: False.** The `pctUniqueDest` plot shows that almost every sender, fraudulent or not, interacts with a unique receiver each time. A value of 100% is the norm for everyone, making this feature not useful for distinguishing fraud.",
-    conclusion_status="error"
-)
-
-display_plot(
-    "Hypothesis: Fraud involves the same two accounts repeatedly exchanging funds.",
-    "7_pair_frequency.png",
-    "**Conclusion: False.** The graph shows that the pair frequency for almost all transactions is 1. This indicates that the vast majority of sender-receiver pairs transact only once, meaning fraudulent users do not repeatedly target the same recipient. The fraud is distributed or 'hit-and-run'.",
-    conclusion_status="error"
+    "Hypothesis: Features exhibit multicollinearity, even with low pairwise correlation.",
+    ["eda_correlation_heatmap.png", "eda_vif_collinearity.png"],
+    "**Conclusion: True.** The correlation heatmap shows weak pairwise linear relationships. However, the VIF (Variance Inflation Factor) plot reveals moderate to high multicollinearity, indicating that some features are linearly predictable from a combination of others. This is critical for selecting the right modeling approach.",
+    conclusion_status="info"
 )
