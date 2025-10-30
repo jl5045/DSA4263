@@ -10,12 +10,10 @@ set -euo pipefail
 
 INPUT=${1:-data/raw/financial-fraud-detection-dataset/Synthetic_Financial_datasets_log.csv}
 OUTDIR=${2:-data/processed/eda}
-CHUNKSIZE=${3:-200000}
-MAX_SAMPLES=${4:-200000}
 
-echo "Precompute: input=${INPUT} outdir=${OUTDIR} chunksize=${CHUNKSIZE} max_samples=${MAX_SAMPLES}"
+echo "Precompute: input=${INPUT} outdir=${OUTDIR}"
 
-python3 scripts/precompute_eda.py --input "$INPUT" --outdir "$OUTDIR" --chunksize "$CHUNKSIZE" --max-amount-samples "$MAX_SAMPLES"
+python3 scripts/precompute_eda.py --input "$INPUT" --outdir "$OUTDIR"
 
 echo "Precompute finished. Starting Streamlit..."
 

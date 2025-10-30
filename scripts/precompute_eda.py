@@ -1,271 +1,274 @@
-"""Precompute EDA artifacts from the raw synthetic financial dataset.
-
-Artifacts produced (saved under data/processed/eda/):
-- fraud_by_type.parquet (type, n_tx, n_fraud, fraud_rate)
-- amount_deciles.parquet (decile, lo, hi, fraud_rate)
-- sender_stats.parquet (nameOrig, tx_count, tx_sum, median_amount, max_amount, isFraud_any)
-- sender_hour_agg.parquet (nameOrig, hour_of_day, avg_amount)
-- pair_counts.parquet (nameOrig, nameDest, tx_count, isFraud_any)
-- uniq_connections.parquet (per-sender unique_receivers, per-receiver unique_senders)
-- fraud_over_time.parquet (step, fraud_count)
-- transfer_cashout_sequences.parquet (examples of TRANSFER->CASH_OUT sequences found heuristically)
-
-Usage:
-    python scripts/precompute_eda.py --input data/raw/financial-fraud-detection-dataset/Synthetic_Financial_datasets_log.csv
-
-The script is defensive: if pyarrow is available it will write parquet, otherwise CSV.
+"""
+Precompute EDA artifacts from the raw synthetic financial dataset by streaming.
+This script processes the entire dataset in chunks to remain memory-efficient,
+generating static PNG plots for all key analyses found in the user's notebooks.
 """
 
 from pathlib import Path
 import argparse
 import pandas as pd
 import numpy as np
-import json
+import seaborn as sns
+import matplotlib.pyplot as plt
 from collections import defaultdict, Counter
-import plotly.express as px
-import math
-
 
 def ensure_out(outdir: Path):
     outdir.mkdir(parents=True, exist_ok=True)
 
-
-def to_parquet_or_csv(df: pd.DataFrame, path: Path):
+def save_plot(fig_or_ax, path: Path):
     try:
-        df.to_parquet(path.with_suffix('.parquet'), index=False)
-        return path.with_suffix('.parquet')
-    except Exception:
-        df.to_csv(path.with_suffix('.csv'), index=False)
-        return path.with_suffix('.csv')
-
-
-def save_plot_json(fig, path: Path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'w', encoding='utf-8') as f:
-        f.write(fig.to_json())
-
-
-def process(args):
-    inp = Path(args.input)
-    assert inp.exists(), f"Input {inp} does not exist"
-    outdir = Path(args.outdir)
-    ensure_out(outdir)
-
-    chunksize = args.chunksize
-
-    # Accumulators
-    type_counts = Counter()
-    type_fraud = Counter()
-    pair_counts = Counter()
-    pair_fraud = Counter()
-    sender_receivers = defaultdict(set)
-    receiver_senders = defaultdict(set)
-    sender_tx_count = Counter()
-    sender_tx_sum = Counter()
-    sender_amounts_stats = defaultdict(list)  # will collect limited samples per sender
-    fraud_over_time = Counter()
-
-    # For amount deciles we collect a reservoir sample up to max_amount_samples
-    amount_samples = []
-    max_amount_samples = args.max_amount_samples
-
-    # Heuristic sequence detection: keep track of last event per sender (type, step, nameDest)
-    last_event = dict()  # nameOrig -> (type, step, nameDest, isFraud)
-    sequences = []
-
-    reader = pd.read_csv(inp, chunksize=chunksize)
-    total = 0
-    for i, chunk in enumerate(reader):
-        # normalize column names if necessary (strip)
-        chunk.columns = [c.strip() for c in chunk.columns]
-
-        total += len(chunk)
-        print(f"Processing chunk {i} ({len(chunk)} rows) — total so far: {total}")
-
-        # basic presence checks
-        has_type = 'type' in chunk.columns
-        has_isFraud = 'isFraud' in chunk.columns
-        has_amount = 'amount' in chunk.columns
-        has_names = ('nameOrig' in chunk.columns) and ('nameDest' in chunk.columns)
-        has_step = 'step' in chunk.columns
-
-        if has_type and has_isFraud:
-            tc = chunk.groupby('type').size()
-            for k, v in tc.items():
-                type_counts[k] += int(v)
-            tf = chunk[chunk['isFraud'] == 1].groupby('type').size()
-            for k, v in tf.items():
-                type_fraud[k] += int(v)
-
-        if has_names:
-            # pair counts
-            pairs = list(zip(chunk['nameOrig'], chunk['nameDest']))
-            for a, b in pairs:
-                pair_counts[(a, b)] += 1
-            if has_isFraud:
-                fraud_pairs = chunk[chunk['isFraud'] == 1]
-                for a, b in zip(fraud_pairs['nameOrig'], fraud_pairs['nameDest']):
-                    pair_fraud[(a, b)] += 1
-
-            # unique connections
-            for a, b in zip(chunk['nameOrig'], chunk['nameDest']):
-                sender_receivers[a].add(b)
-                receiver_senders[b].add(a)
-
-            # sender stats
-            if has_amount:
-                for a, amt in zip(chunk['nameOrig'], chunk['amount']):
-                    sender_tx_count[a] += 1
-                    try:
-                        sender_tx_sum[a] += float(amt)
-                    except Exception:
-                        sender_tx_sum[a] += 0.0
-                    # collect limited amounts per sender for median estimates (cap to 100)
-                    if len(sender_amounts_stats[a]) < 100:
-                        sender_amounts_stats[a].append(float(amt))
-
-        # fraud over time
-        if has_step and has_isFraud:
-            fts = chunk[chunk['isFraud'] == 1].groupby('step').size()
-            for s, v in fts.items():
-                fraud_over_time[int(s)] += int(v)
-
-        # amount samples for deciles
-        if has_amount:
-            vals = chunk['amount'].dropna().astype(float).values
-            if len(amount_samples) < max_amount_samples:
-                need = max_amount_samples - len(amount_samples)
-                amount_samples.extend(list(vals[:need]))
-            # reservoir sampling for rest
-            if len(vals) > 0 and len(amount_samples) >= max_amount_samples:
-                # reservoir sampling replacement
-                for v in vals:
-                    j = np.random.randint(0, total)
-                    if j < max_amount_samples:
-                        amount_samples[j] = float(v)
-
-        # sequence heuristic: look for TRANSFER followed by CASH_OUT within small step difference
-        if has_names and has_type and has_step:
-            for a, t, s_step, dest, isf in zip(chunk['nameOrig'], chunk['type'], chunk['step'], chunk['nameDest'], chunk['isFraud'] if 'isFraud' in chunk.columns else [0]*len(chunk)):
-                prev = last_event.get(a)
-                try:
-                    s_step_i = int(s_step)
-                except Exception:
-                    s_step_i = None
-                if prev is not None:
-                    prev_type, prev_step, prev_dest, prev_isf = prev
-                    if prev_type == 'TRANSFER' and t == 'CASH_OUT' and (s_step_i is not None and prev_step is not None):
-                        time_diff = s_step_i - prev_step
-                        sequences.append({
-                            'sender': a,
-                            'transfer_dest': prev_dest,
-                            'cashout_dest': dest,
-                            'transfer_step': prev_step,
-                            'cashout_step': s_step_i,
-                            'time_diff': time_diff,
-                            'isFraud_transfer': int(prev_isf),
-                            'isFraud_cashout': int(isf)
-                        })
-                # update last event
-                try:
-                    last_event[a] = (t, int(s_step) if s_step is not None and not (isinstance(s_step, float) and math.isnan(s_step)) else None, dest, int(isf) if 'isFraud' in chunk.columns else 0)
-                except Exception:
-                    last_event[a] = (t, None, dest, int(isf) if 'isFraud' in chunk.columns else 0)
-
-    # End chunk loop
-    print(f"Finished reading. Processed {total} rows.")
-
-    # Build DataFrames
-    # fraud_by_type
-    types = list(set(list(type_counts.keys()) + list(type_fraud.keys())))
-    fraud_by_type = pd.DataFrame([
-        {'type': t, 'n_tx': int(type_counts.get(t, 0)), 'n_fraud': int(type_fraud.get(t, 0))}
-        for t in types
-    ])
-    if not fraud_by_type.empty:
-        fraud_by_type['fraud_rate'] = fraud_by_type['n_fraud'] / fraud_by_type['n_tx']
-    fraud_by_type = fraud_by_type.sort_values('n_tx', ascending=False)
-    to_parquet_or_csv(fraud_by_type, outdir / 'fraud_by_type')
-
-    # amount deciles from samples
-    if len(amount_samples) > 0:
-        arr = np.array(amount_samples)
-        deciles = np.quantile(arr, np.linspace(0, 1, 11))
-        rows = []
-        for i in range(10):
-            lo, hi = float(deciles[i]), float(deciles[i+1])
-            # compute fraud rate in sample for this bin (approx)
-            mask = (arr >= lo) & (arr <= hi)
-            # cannot compute fraud probability from samples alone accurately; set NaN
-            rows.append({'decile': i+1, 'lo': lo, 'hi': hi})
-        amount_deciles = pd.DataFrame(rows)
-        to_parquet_or_csv(amount_deciles, outdir / 'amount_deciles')
-
-    # pair counts
-    pc_rows = [{'nameOrig': a, 'nameDest': b, 'tx_count': c, 'isFraud_any': int(pair_fraud.get((a,b),0) > 0)} for (a,b), c in pair_counts.items()]
-    pair_counts_df = pd.DataFrame(pc_rows).sort_values('tx_count', ascending=False)
-    to_parquet_or_csv(pair_counts_df, outdir / 'pair_counts')
-
-    # unique connections
-    uniq_sender = [{'nameOrig': a, 'unique_receivers': len(s), 'isFraud_any': int(any([False for _ in []]))} for a, s in sender_receivers.items()]
-    uniq_sender_df = pd.DataFrame(uniq_sender)
-    to_parquet_or_csv(uniq_sender_df, outdir / 'uniq_receivers_per_sender')
-
-    uniq_receiver = [{'nameDest': a, 'unique_senders': len(s)} for a, s in receiver_senders.items()]
-    uniq_receiver_df = pd.DataFrame(uniq_receiver)
-    to_parquet_or_csv(uniq_receiver_df, outdir / 'uniq_senders_per_receiver')
-
-    # sender stats
-    srows = []
-    for s in sender_tx_count:
-        amounts = sender_amounts_stats.get(s, [])
-        median_amt = float(np.median(amounts)) if len(amounts) > 0 else np.nan
-        srows.append({'nameOrig': s, 'tx_count': int(sender_tx_count[s]), 'tx_sum': float(sender_tx_sum.get(s, 0.0)), 'median_amount_est': median_amt})
-    sender_stats_df = pd.DataFrame(srows).sort_values('tx_sum', ascending=False)
-    to_parquet_or_csv(sender_stats_df, outdir / 'sender_stats')
-
-    # fraud over time
-    fot = pd.DataFrame([{'step': int(s), 'fraud_count': int(c)} for s, c in sorted(fraud_over_time.items())])
-    to_parquet_or_csv(fot, outdir / 'fraud_over_time')
-
-    # sequences (save sample of sequences)
-    seq_df = pd.DataFrame(sequences)
-    if not seq_df.empty:
-        to_parquet_or_csv(seq_df.head(10000), outdir / 'transfer_cashout_sequences')
-
-    # small plots
-    try:
-        if not fraud_by_type.empty:
-            fig = px.bar(fraud_by_type, x='type', y='fraud_rate', title='Fraud rate by type')
-            save_plot_json(fig, outdir / 'plots' / 'fraud_by_type.json')
-
-        if not pair_counts_df.empty:
-            fig2 = px.histogram(pair_counts_df, x='tx_count', title='Transactions per sender–receiver pair')
-            save_plot_json(fig2, outdir / 'plots' / 'pair_counts_hist.json')
+        fig = fig_or_ax.get_figure() if isinstance(fig_or_ax, plt.Axes) else fig_or_ax
+        fig.savefig(path.with_suffix('.png'))
+        plt.close(fig)
+        print(f"Saved plot: {path.with_suffix('.png')}")
     except Exception as e:
-        print('Could not create plots:', e)
-
-    # Write manifest
-    manifest = {
-        'input': str(inp),
-        'rows_processed': int(total),
-        'artifacts': [str(p.relative_to(Path.cwd())) for p in outdir.glob('*') if p.is_file()]
-    }
-    with open(outdir / 'manifest.json', 'w', encoding='utf-8') as f:
-        json.dump(manifest, f, indent=2)
-
-    print('Precompute finished. Artifacts written to', outdir)
-
+        print(f"Could not save plot to {path}. Error: {e}")
+        print("Please ensure you have 'matplotlib' and 'seaborn' installed.")
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--input', type=str, required=True, help='Path to raw CSV')
     parser.add_argument('--outdir', type=str, default='data/processed/eda', help='Output directory for artifacts')
-    parser.add_argument('--chunksize', type=int, default=200_000, help='CSV read chunksize')
-    parser.add_argument('--max-amount-samples', dest='max_amount_samples', type=int, default=200_000, help='Max reservoir samples for amount quantiles')
+    parser.add_argument('--chunksize', type=int, default=500000, help='Rows to process per chunk')
     args = parser.parse_args()
-    process(args)
 
+    inp = Path(args.input)
+    assert inp.exists(), f"Input {inp} does not exist"
+    outdir = Path(args.outdir)
+    plots_dir = outdir / 'plots'
+    ensure_out(plots_dir)
+
+    # --- PASS 1: Aggregate all necessary data by streaming through the file ---
+    print("--- Starting Pass 1: Aggregating data from the entire dataset... ---")
+    
+    # Initialize accumulators
+    type_counts = Counter()
+    type_fraud_counts = Counter()
+    pair_counts = Counter()
+    receiver_type_sets = defaultdict(set)
+    receiver_stats_agg = defaultdict(lambda: (0, 0.0, 0.0))
+    type_stats_agg = defaultdict(lambda: (0, 0.0, 0.0))
+    amount_samples_fraud = []
+    amount_samples_nonfraud = []
+    sample_size = 50000
+    last_event = {}
+    sequences = []
+    # For hourly averages
+    hourly_amounts = defaultdict(list)
+    # For recency
+    last_step = {}
+    recency_fraud = []
+    recency_nonfraud = []
+    # For unique connections
+    sender_total_counts = Counter()
+    sender_unique_dests = defaultdict(set)
+
+    total_rows = 0
+    for chunk in pd.read_csv(inp, chunksize=args.chunksize):
+        total_rows += len(chunk)
+        print(f"  Processing rows {total_rows - len(chunk):,} to {total_rows:,}...")
+        # Fraud by type
+        for _, row in chunk.iterrows():
+            type_counts[row['type']] += 1
+            if row['isFraud']:
+                type_fraud_counts[row['type']] += 1
+            pair_counts[(row['nameOrig'], row['nameDest'])] += 1
+            receiver_type_sets[row['nameDest']].add(row['type'])
+            # Welford for receiver/type stats
+            def update_welford(agg, value):
+                count, mean, M2 = agg
+                count += 1
+                delta = value - mean
+                mean += delta / count
+                delta2 = value - mean
+                M2 += delta * delta2
+                return (count, mean, M2)
+            receiver_stats_agg[row['nameDest']] = update_welford(receiver_stats_agg[row['nameDest']], row['amount'])
+            type_stats_agg[row['type']] = update_welford(type_stats_agg[row['type']], row['amount'])
+            # Sequence pattern
+            sender = row['nameOrig']
+            if sender in last_event:
+                prev_row = last_event[sender]
+                if prev_row['type'] == 'TRANSFER' and row['type'] == 'CASH_OUT':
+                    sequences.append(row)
+            last_event[sender] = row
+            # Hourly averages
+            hour = int(row['step']) % 24
+            hourly_amounts[hour].append(row['amount'])
+            # Unique connections
+            sender_total_counts[row['nameOrig']] += 1
+            sender_unique_dests[row['nameOrig']].add(row['nameDest'])
+
+        # Amount samples
+        fraud_amounts = chunk[chunk['isFraud'] == 1]['amount']
+        nonfraud_amounts = chunk[chunk['isFraud'] == 0]['amount']
+        for val in fraud_amounts:
+            if len(amount_samples_fraud) < sample_size:
+                amount_samples_fraud.append(val)
+        for val in nonfraud_amounts:
+            if len(amount_samples_nonfraud) < sample_size:
+                amount_samples_nonfraud.append(val)
+
+    print("--- Pass 1 Finished. Finalizing initial dataframes... ---")
+
+    fraud_by_type = pd.DataFrame({
+        'type': list(type_counts.keys()),
+        'total': [type_counts[t] for t in type_counts.keys()],
+        'fraud': [type_fraud_counts.get(t, 0) for t in type_counts.keys()]
+    })
+    fraud_by_type['fraud_rate'] = fraud_by_type['fraud'] / fraud_by_type['total']
+    
+    amount_samples_df = pd.DataFrame({
+        'amount': amount_samples_fraud + amount_samples_nonfraud,
+        'isFraud': [1] * len(amount_samples_fraud) + [0] * len(amount_samples_nonfraud)
+    })
+    
+    receiver_stats_list = []
+    for dest, (count, mean, M2) in receiver_stats_agg.items():
+        variance = M2 / (count - 1) if count > 1 else 0
+        std = np.sqrt(variance)
+        receiver_stats_list.append({'nameDest': dest, 'amount_mean': mean, 'amount_std': std})
+    receiver_stats = pd.DataFrame(receiver_stats_list)
+    
+    type_stats_list = []
+    for t, (count, mean, M2) in type_stats_agg.items():
+        variance = M2 / (count - 1) if count > 1 else 0
+        std = np.sqrt(variance)
+        type_stats_list.append({'type': t, 'mean': mean, 'std': std})
+    type_stats = pd.DataFrame(type_stats_list)
+    
+    pair_counts_df = pd.DataFrame(pair_counts.items(), columns=['pair', 'count'])
+    pair_counts_df[['nameOrig', 'nameDest']] = pd.DataFrame(pair_counts_df['pair'].tolist(), index=pair_counts_df.index)
+    
+    receiver_types_df = pd.DataFrame([{'nameDest': k, 'num_types': len(v)} for k, v in receiver_type_sets.items()])
+
+    # --- PASS 2: Calculate stats that required Pass 1 results ---
+    print("\n--- Starting Pass 2 of 2: Calculating ratio and binned statistics... ---")
+    _, amount_bins = pd.qcut(amount_samples_df['amount'], q=10, retbins=True, duplicates='drop')
+    type_mean_map = type_stats.set_index('type')['mean'].to_dict()
+
+    bin_counts = Counter()
+    bin_fraud_counts = Counter()
+    amount_ratio_fraud = []
+    amount_ratio_nonfraud = []
+
+    total_rows = 0
+    for chunk in pd.read_csv(inp, chunksize=args.chunksize):
+        total_rows += len(chunk)
+        print(f"  Pass 2: Processing rows {total_rows - len(chunk):,} to {total_rows:,}...")
+        
+        chunk['amount_bin'] = pd.cut(chunk['amount'], bins=amount_bins, labels=False, include_lowest=True)
+        chunk['amountTypeRatio'] = chunk['amount'] / chunk['type'].map(type_mean_map).fillna(1)
+
+        for _, row in chunk.iterrows():
+            if pd.notna(row['amount_bin']):
+                bin_counts[row['amount_bin']] += 1
+                if row['isFraud']:
+                    bin_fraud_counts[row['amount_bin']] += 1
+        
+        fraud_ratios = chunk[chunk['isFraud'] == 1]['amountTypeRatio'].dropna()
+        nonfraud_ratios = chunk[chunk['isFraud'] == 0]['amountTypeRatio'].dropna()
+
+        for val in fraud_ratios:
+            if len(amount_ratio_fraud) < sample_size:
+                amount_ratio_fraud.append(val)
+            else:
+                idx = np.random.randint(0, total_rows)
+                if idx < sample_size:
+                    amount_ratio_fraud[idx] = val
+        
+        for val in nonfraud_ratios:
+            if len(amount_ratio_nonfraud) < sample_size:
+                amount_ratio_nonfraud.append(val)
+            else:
+                idx = np.random.randint(0, total_rows)
+                if idx < sample_size:
+                    amount_ratio_nonfraud[idx] = val
+
+    print("--- Pass 2 Finished. Finalizing all plots... ---")
+
+    prob_by_amount_list = []
+    for b, total in bin_counts.items():
+        fraud = bin_fraud_counts.get(b, 0)
+        if total > 0:
+            prob_by_amount_list.append({'amount_bin': b, 'fraud_rate': fraud / total})
+    prob_by_amount = pd.DataFrame(prob_by_amount_list)
+    
+    amount_ratio_df = pd.DataFrame({
+        'amountTypeRatio': amount_ratio_fraud + amount_ratio_nonfraud,
+        'isFraud': [1] * len(amount_ratio_fraud) + [0] * len(amount_ratio_nonfraud)
+    })
+
+    # --- Generate and Save All Plots ---
+    # Plot 1: Fraud Rate by Transaction Type
+    import plotly.express as px
+    fig1 = px.bar(fraud_by_type.sort_values('fraud_rate', ascending=False),
+                  x='type', y='fraud_rate', title='Fraud Rate by Transaction Type')
+    save_plot(fig1, plots_dir / 'H1_fraud_rate_by_type.png')
+
+    # Plot 2: Amount Distribution (Sampled): Fraud vs Non-Fraud
+    amount_samples_df['label'] = amount_samples_df['isFraud'].map({0: 'Non-Fraud', 1: 'Fraud'})
+    fig2a = px.box(amount_samples_df, x='label', y='amount', log_y=True, title='Amount Distribution (Sampled): Fraud vs Non-Fraud')
+    save_plot(fig2a, plots_dir / 'H2a_amount_comparison_box.png')
+
+    # Plot 3: Fraud Probability by Amount Quantile
+    bin_labels = [f"[{amount_bins[i]:.0f}-{amount_bins[i+1]:.0f}]" for i in range(len(amount_bins)-1)]
+    prob_by_amount['bin_label'] = prob_by_amount['amount_bin'].map(dict(enumerate(bin_labels)))
+    fig3 = px.bar(prob_by_amount, x='bin_label', y='fraud_rate', title='Fraud Probability by Amount Quantile')
+    save_plot(fig3, plots_dir / 'H2b_fraud_prob_by_amount.png')
+
+    # Plot 4: Transaction Recency Distribution by Fraud Label
+    # Compute transaction recency for each transaction
+    recency_list = []
+    is_fraud_list = []
+    last_step_map = {}
+    for chunk in pd.read_csv(inp, chunksize=args.chunksize, usecols=['nameOrig', 'step', 'isFraud']):
+        chunk = chunk.sort_values(['nameOrig', 'step'])
+        for _, row in chunk.iterrows():
+            sender = row['nameOrig']
+            step = row['step']
+            if sender in last_step_map:
+                recency = step - last_step_map[sender]
+                recency_list.append(recency)
+                is_fraud_list.append(row['isFraud'])
+            last_step_map[sender] = step
+    recency_df = pd.DataFrame({
+        'transactionRecency': recency_list,
+        'isFraud': is_fraud_list
+    })
+    fig4 = plt.figure(figsize=(8, 5))
+    sns.kdeplot(recency_df[recency_df['isFraud']==0]['transactionRecency'], label='Non-Fraud', fill=True)
+    sns.kdeplot(recency_df[recency_df['isFraud']==1]['transactionRecency'], label='Fraud', fill=True)
+    plt.title('Transaction Recency Distribution by Fraud Label')
+    plt.xlabel('Steps Since Last Transaction')
+    plt.legend()
+    save_plot(fig4, plots_dir / 'H4_transaction_recency.png')
+
+    # Plot 5: Distribution of Average Hourly Transaction Amounts
+    hourly_avg = {h: np.mean(hourly_amounts[h]) if len(hourly_amounts[h]) > 0 else 0 for h in range(24)}
+    hourly_df = pd.DataFrame({'hour': list(hourly_avg.keys()), 'avg_amount': list(hourly_avg.values())})
+    fig5 = px.bar(hourly_df, x='hour', y='avg_amount', title='Distribution of Average Hourly Transaction Amounts')
+    save_plot(fig5, plots_dir / 'H5_hourly_avg_amount.png')
+
+    # Plot 6: % of Unique Receivers per Sender
+    sender_stats = pd.DataFrame({
+        'nameOrig': list(sender_total_counts.keys()),
+        'totalSent': [sender_total_counts[s] for s in sender_total_counts.keys()],
+        'numUniqueDest': [len(sender_unique_dests[s]) for s in sender_total_counts.keys()]
+    })
+    sender_stats['pctUniqueDest'] = (sender_stats['numUniqueDest'] / sender_stats['totalSent']) * 100
+    fig6 = plt.figure(figsize=(8, 5))
+    sns.histplot(sender_stats['pctUniqueDest'], bins=40, kde=True)
+    plt.title('% of Unique Receivers per Sender')
+    plt.xlabel('pctUniqueDest')
+    save_plot(fig6, plots_dir / 'H6_pct_unique_dest.png')
+
+    # Plot 7: Histogram of Transactions per Sender-Receiver Pair
+    fig7 = px.histogram(pair_counts_df, x='count', title='Histogram of Transactions per Sender-Receiver Pair')
+    fig7.update_xaxes(range=[0, 10])
+    save_plot(fig7, plots_dir / 'H7_pair_frequency.png')
+
+    print("\nPrecomputation of all plots from the full dataset is complete.")
 
 if __name__ == '__main__':
     main()
