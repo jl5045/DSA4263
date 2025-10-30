@@ -1048,10 +1048,10 @@ def build_edgelist(edgelist: pd.DataFrame) -> pd.DataFrame:
            .reset_index())
     return agg
 
-def compute_centralities(agg: pd.DataFrame) -> dict:
+def compute_centralities(agg: pd.DataFrame, eps: float = 1e-9) -> dict:
     if agg.empty:
         return {
-            "pr": defaultdict(float), # PageRank 
+            "btwn": defaultdict(float), # betweenness 
             "outdeg_amt": defaultdict(float),
             "indeg_amt": defaultdict(float),
             "outdeg_cnt": defaultdict(float),
@@ -1071,9 +1071,10 @@ def compute_centralities(agg: pd.DataFrame) -> dict:
 
     g.es["w_amount"] = agg["w_amount"].astype(float).tolist()
     g.es["w_count"]  = agg["w_count"].astype(float).tolist()
+    costs = [1.0 / (w + eps) for w in g.es["w_amount"]]
 
     # --- centralities ---
-    pr = g.pagerank(weights="w_amount")
+    btwn = g.betweenness(weights=costs, directed = True)
     outdeg_amt = g.strength(mode="OUT", weights="w_amount")
     indeg_amt  = g.strength(mode="IN",  weights="w_amount")
     outdeg_cnt = g.strength(mode="OUT", weights="w_count")
@@ -1081,7 +1082,7 @@ def compute_centralities(agg: pd.DataFrame) -> dict:
 
     names = g.vs["name"]
     return {
-        "pr": dict(zip(names, pr)),
+        "btwn": dict(zip(names, btwn)),
         "outdeg_amt": dict(zip(names, outdeg_amt)),
         "indeg_amt":  dict(zip(names, indeg_amt)),
         "outdeg_cnt": dict(zip(names, outdeg_cnt)),
@@ -1091,56 +1092,47 @@ def compute_centralities(agg: pd.DataFrame) -> dict:
 def add_network_features(
         df: pd.DataFrame,
         split_name: str, 
-        block_size: int = 10, 
-        window_size: int = 50,
         **kwargs
     ) -> pd.DataFrame:
-    # e.g. For each block of 10 time steps, use the previous 50 time steps of transactions to compute graph features.
 
     df = df.copy()
-    df = df.sort_values("step").reset_index(drop=True)
-    df["pair_key"] = df["nameOrig"] + "→" + df["nameDest"]
-    df["block"] = (df["step"] // block_size).astype(int)
-
+    
     # placeholder columns
     for col in [
-        "sender_pr","receiver_pr",
+        
+        "sender_btwn","receiver_btwn",
         "sender_outdeg_amt","sender_indeg_amt",
         "receiver_outdeg_amt","receiver_indeg_amt",
         "sender_outdeg_cnt","sender_indeg_cnt",
         "receiver_outdeg_cnt","receiver_indeg_cnt",
-        "pagerank_diff","outdeg_amt_diff","indeg_amt_diff",
+        "btwn_diff","outdeg_amt_diff","indeg_amt_diff",
         "outdeg_cnt_diff","indeg_cnt_diff"
     ]:
         df[col] = 0.0
 
-    for b in sorted(df["block"].unique()):
-        block_mask = df["block"] == b
-        block_min_step = int(df.loc[block_mask, "step"].min())
-        hist_mask = (df["step"] < block_min_step) & (df["step"] >= block_min_step - window_size)
-        hist_edges = df.loc[hist_mask, ["nameOrig","nameDest","amount","step"]]
-        agg = build_edgelist(hist_edges)
-        cent = compute_centralities(agg)
+    
+    edges = df[["nameOrig","nameDest","amount"]]
+    agg = build_edgelist(edges)
+    cent = compute_centralities(agg)
 
-        idx = df.index[block_mask]
-        df.loc[idx, "sender_pr"] = df.loc[idx, "nameOrig"].map(cent["pr"]).fillna(0.0)
-        df.loc[idx, "receiver_pr"] = df.loc[idx, "nameDest"].map(cent["pr"]).fillna(0.0)
+    df["sender_btwn"] = df["nameOrig"].map(cent["btwn"]).fillna(0.0)
+    df["receiver_btwn"] = df["nameDest"].map(cent["btwn"]).fillna(0.0)
 
-        df.loc[idx, "sender_outdeg_amt"] = df.loc[idx, "nameOrig"].map(cent["outdeg_amt"]).fillna(0.0)
-        df.loc[idx, "sender_indeg_amt"]  = df.loc[idx, "nameOrig"].map(cent["indeg_amt"]).fillna(0.0)
-        df.loc[idx, "receiver_outdeg_amt"] = df.loc[idx, "nameDest"].map(cent["outdeg_amt"]).fillna(0.0)
-        df.loc[idx, "receiver_indeg_amt"]  = df.loc[idx, "nameDest"].map(cent["indeg_amt"]).fillna(0.0)
+    df["sender_outdeg_amt"] = df["nameOrig"].map(cent["outdeg_amt"]).fillna(0.0)
+    df["sender_indeg_amt"]  = df["nameOrig"].map(cent["indeg_amt"]).fillna(0.0)
+    df["receiver_outdeg_amt"] = df["nameDest"].map(cent["outdeg_amt"]).fillna(0.0)
+    df["receiver_indeg_amt"]  = df["nameDest"].map(cent["indeg_amt"]).fillna(0.0)
 
-        df.loc[idx, "sender_outdeg_cnt"] = df.loc[idx, "nameOrig"].map(cent["outdeg_cnt"]).fillna(0.0)
-        df.loc[idx, "sender_indeg_cnt"]  = df.loc[idx, "nameOrig"].map(cent["indeg_cnt"]).fillna(0.0)
-        df.loc[idx, "receiver_outdeg_cnt"] = df.loc[idx, "nameDest"].map(cent["outdeg_cnt"]).fillna(0.0)
-        df.loc[idx, "receiver_indeg_cnt"]  = df.loc[idx, "nameDest"].map(cent["indeg_cnt"]).fillna(0.0)
+    df["sender_outdeg_cnt"] = df["nameOrig"].map(cent["outdeg_cnt"]).fillna(0.0)
+    df["sender_indeg_cnt"]  = df["nameOrig"].map(cent["indeg_cnt"]).fillna(0.0)
+    df["receiver_outdeg_cnt"] = df["nameDest"].map(cent["outdeg_cnt"]).fillna(0.0)
+    df["receiver_indeg_cnt"]  = df["nameDest"].map(cent["indeg_cnt"]).fillna(0.0)
 
-        df.loc[idx, "pagerank_diff"]  = df.loc[idx, "sender_pr"] - df.loc[idx, "receiver_pr"]
-        df.loc[idx, "outdeg_amt_diff"] = df.loc[idx, "sender_outdeg_amt"] - df.loc[idx, "receiver_outdeg_amt"]
-        df.loc[idx, "indeg_amt_diff"]  = df.loc[idx, "sender_indeg_amt"]  - df.loc[idx, "receiver_indeg_amt"]
-        df.loc[idx, "outdeg_cnt_diff"] = df.loc[idx, "sender_outdeg_cnt"] - df.loc[idx, "receiver_outdeg_cnt"]
-        df.loc[idx, "indeg_cnt_diff"]  = df.loc[idx, "sender_indeg_cnt"]  - df.loc[idx, "receiver_indeg_cnt"]
+    df["btwn_diff"]  = df["sender_btwn"] - df["receiver_btwn"]    
+    df["outdeg_amt_diff"] = df["sender_outdeg_amt"] - df["receiver_outdeg_amt"]
+    df["indeg_amt_diff"]  = df["sender_indeg_amt"]  - df["receiver_indeg_amt"]
+    df["outdeg_cnt_diff"] = df["sender_outdeg_cnt"] - df["receiver_outdeg_cnt"]
+    df["indeg_cnt_diff"]  = df["sender_indeg_cnt"]  - df["receiver_indeg_cnt"]
 
     return df
 
