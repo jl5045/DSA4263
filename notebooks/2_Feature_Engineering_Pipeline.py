@@ -1281,7 +1281,7 @@ def main():
 
 def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
     """Drop columns that are not usable for modeling as per Kaggle rules."""
-    cols_to_drop = ['oldbalanceOrg', 'newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
+    cols_to_drop = ['newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
     # Check which columns exist before trying to drop
     cols_exist = [col for col in cols_to_drop if col in df.columns]
     if cols_exist:
@@ -1289,11 +1289,21 @@ def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.Dat
         print(f"Dropped columns from {split_name}: {cols_exist}")
     return df
 
+def add_amount_ratio(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
+    """Add amount_to_oldbalanceOrg feature."""
+    if 'amount' in df.columns and 'oldbalanceOrg' in df.columns:
+        df['amount_to_oldbalanceOrg'] = df['amount'] / df['oldbalanceOrg'].replace(0, np.nan)
+        print(f"{split_name}: Added 'amount_to_oldbalanceOrg' successfully.")
+    else:
+        print(f"{split_name}: Skipped — missing required columns.")
+    return df
+
 
 def build_default_pipeline() -> List[FeatureStep]:
     """Return the ordered list of feature functions plus their kwargs."""
 
     return [
+        (add_amount_ratio, {}),
         (drop_unusable_columns, {}),
         (transaction_velocity, {}),
         (add_avg_amount_features, {}),
