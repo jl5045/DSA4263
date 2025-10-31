@@ -75,7 +75,7 @@ display_plot(
 display_plot(
     "Hypothesis: A small number of senders are responsible for a large portion of transaction volume.",
     "eda_top10_senders_total_amount.png",
-    "**Conclusion: True.** The bar chart shows the top 10 senders by total transaction amount, highlighting that a few accounts move significant funds, which could be a useful feature for anomaly detection."
+    "**Conclusion: True.** The bar chart shows the top 10 senders which arev involved in at least 1 fraud transaction by total transaction amount, highlighting that a few accounts move significant funds, which could be a useful feature for anomaly detection."
 )
 
 display_plot(
