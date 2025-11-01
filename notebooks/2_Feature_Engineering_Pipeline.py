@@ -1369,7 +1369,7 @@ def run_full_feature_pipeline(
 def main():
     """Load data from predefined paths, run feature pipeline for each downsampled training set, and export results."""
     
-    # Restore normal train, test, val split
+    # Process normal train/test/val split
     train_path = "./data/splits/train.csv"
     test_path = "./data/splits/test.csv"
     val_path = "./data/splits/val.csv"
@@ -1390,7 +1390,7 @@ def main():
 
     split_frames = create_split_frames(df_train, df_test, df_val)
 
-    print("\nStarting feature engineering pipeline...")
+    print("\nStarting feature engineering pipeline for normal splits...")
     run_full_feature_pipeline(
         split_frames,
         export=True,
@@ -1399,7 +1399,7 @@ def main():
         without_merchants_dir=without_merchants_dir,
         train_label="train"
     )
-    print("Feature engineering pipeline complete.")
+    print("Feature engineering pipeline for normal splits complete.")
 
     print("\n--- Final Columns (with merchants) ---")
     for split_name, df in split_frames.items():
@@ -1410,6 +1410,35 @@ def main():
     for split_name, df in split_frames.items():
         filtered_df = df[~df["nameDest"].str.contains('M')]
         print(f"\nColumns for {split_name} data (without merchants):")
+        print(filtered_df.columns)
+
+    # Process all downsampled train splits
+    downsampled_train_files = {
+        "downsampled_1to5": "./data/splits/train_downsampled_1to5.csv",
+        "downsampled_1to10": "./data/splits/train_downsampled_1to10.csv",
+    }
+    for label, train_path in downsampled_train_files.items():
+        print(f"\n{'='*20} PROCESSING {label.upper()} {'='*20}")
+        if not os.path.exists(train_path):
+            print(f"Warning: Training file not found at {train_path}. Skipping.")
+            continue
+        print(f"Loading training data from: {train_path}")
+        df_train = pd.read_csv(train_path)
+        split_frames = {"Train": df_train.copy()}
+        print(f"\nStarting feature engineering pipeline for {label}...")
+        run_full_feature_pipeline(
+            split_frames,
+            export=True,
+            plots_dir=plots_dir,
+            with_merchants_dir=with_merchants_dir,
+            without_merchants_dir=without_merchants_dir,
+            train_label=label
+        )
+        print(f"Feature engineering pipeline for {label} complete.")
+        print(f"\n--- Final Columns for {label} (with merchants) ---")
+        print(split_frames["Train"].columns)
+        print(f"\n--- Final Columns for {label} (without merchants) ---")
+        filtered_df = split_frames["Train"][~split_frames["Train"]["nameDest"].str.contains('M')]
         print(filtered_df.columns)
 
     
