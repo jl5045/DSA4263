@@ -9,3 +9,10 @@ statsmodels
 imblearn
 xgboost
 igraph
+igraph
+streamlit
+pyvis
+networkx
+plotly
+kaleido
+tqdm
