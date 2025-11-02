@@ -470,7 +470,7 @@ def add_sender_receiver_aggregations(df: pd.DataFrame, split_name: str, **kwargs
     return df
 
 
-def plot_sender_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None) -> pd.DataFrame:
+def plot_sender_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None, split_label: str = "") -> pd.DataFrame:
     """Visualise sender-level aggregation features."""
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -513,25 +513,29 @@ def plot_sender_features(df: pd.DataFrame, split_name: str, plots_dir: str | Non
         ax.set_ylabel('Density')
         ax.set_title(f'{split_name}: {title}')
         if metric in {'totalSent', 'meanSent', 'stdSent'}:
-            ax.set_xscale('log')
-            ax.set_yscale('log')
+            # Only apply log scale if there's positive data to prevent errors
+            non_fraud_data = df[df['isFraud'] == 0][metric].dropna()
+            fraud_data = df[df['isFraud'] == 1][metric].dropna()
+            if (non_fraud_data > 0).any() or (fraud_data > 0).any():
+                ax.set_xscale('log')
+                ax.set_yscale('log')
         if metric == 'numSent':
             ax.set_yscale('log')
         ax.legend()
 
     plt.tight_layout()
-    
+    title_label = f"{split_name} ({split_label})" if split_label else split_name
+    fig.suptitle(f"Sender Features: {title_label}", fontsize=16)
     if plots_dir:
-        plot_path = os.path.join(plots_dir, f"{split_name}_sender_features.png")
+        plot_path = os.path.join(plots_dir, f"{split_name}_{split_label}_sender_features.png")
         fig.savefig(plot_path)
         plt.close(fig)
     else:
         plt.show()
-        
     return df
 
 
-def plot_receiver_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None) -> pd.DataFrame:
+def plot_receiver_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None, split_label: str = "") -> pd.DataFrame:
     """Visualise receiver-level aggregation features."""
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -574,21 +578,25 @@ def plot_receiver_features(df: pd.DataFrame, split_name: str, plots_dir: str | N
         ax.set_ylabel('Density')
         ax.set_title(f'{split_name}: {title}')
         if metric in {'totalReceived', 'meanReceived', 'stdReceived'}:
-            ax.set_xscale('log')
-            ax.set_yscale('log')
+            # Only apply log scale if there's positive data to prevent errors
+            non_fraud_data = df[df['isFraud'] == 0][metric].dropna()
+            fraud_data = df[df['isFraud'] == 1][metric].dropna()
+            if (non_fraud_data > 0).any() or (fraud_data > 0).any():
+                ax.set_xscale('log')
+                ax.set_yscale('log')
         if metric == 'numReceived':
             ax.set_yscale('log')
         ax.legend()
 
     plt.tight_layout()
-    
+    title_label = f"{split_name} ({split_label})" if split_label else split_name
+    fig.suptitle(f"Receiver Features: {title_label}", fontsize=16)
     if plots_dir:
-        plot_path = os.path.join(plots_dir, f"{split_name}_receiver_features.png")
+        plot_path = os.path.join(plots_dir, f"{split_name}_{split_label}_receiver_features.png")
         fig.savefig(plot_path)
         plt.close(fig)
     else:
         plt.show()
-        
     return df
 
 
@@ -1201,6 +1209,7 @@ def export_featured_datasets(
     split_frames: SplitMap,
     with_merchants_dir: str = "./data/raw(withMerchants)",
     without_merchants_dir: str = "./data/raw(withoutMerchants)",
+    train_label: str | None = None,
 ) -> None:
     """Persist the engineered datasets with and without merchant destinations."""
 
@@ -1211,15 +1220,19 @@ def export_featured_datasets(
         # Drop columns before saving
         df_to_save = drop_final_columns(df.copy())
 
+        file_split_name = split_name.lower()
+        if split_name == "Train" and train_label:
+            file_split_name = f"train_{train_label}"
+
         with_path = os.path.join(
-            with_merchants_dir, f'FE_{split_name.lower()}_with_merchants.csv'
+            with_merchants_dir, f'FE_{file_split_name}_with_merchants.csv'
         )
         df_to_save.to_csv(with_path, index=False)
         print(f"Saved {split_name} (with merchants) to {with_path} | shape={df_to_save.shape}")
 
         filtered_df = df_to_save[~df_to_save['nameDest'].str.contains('M')]
         without_path = os.path.join(
-            without_merchants_dir, f'FE_{split_name.lower()}_without_merchants.csv'
+            without_merchants_dir, f'FE_{file_split_name}_without_merchants.csv'
         )
         filtered_df.to_csv(without_path, index=False)
         print(
@@ -1281,7 +1294,7 @@ def main():
 
 def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
     """Drop columns that are not usable for modeling as per Kaggle rules."""
-    cols_to_drop = ['newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
+    cols_to_drop = ['newbalanceOrig', 'newbalanceDest']
     # Check which columns exist before trying to drop
     cols_exist = [col for col in cols_to_drop if col in df.columns]
     if cols_exist:
@@ -1311,8 +1324,8 @@ def build_default_pipeline() -> List[FeatureStep]:
         (plot_receiver_type_heatmap, {}),
         (add_transaction_type_features, {}),
         (add_sender_receiver_aggregations, {}),
-        (plot_sender_features, {}),
-        (plot_receiver_features, {}),
+        (plot_sender_features, {"split_label": ""}),
+        (plot_receiver_features, {"split_label": ""}),
         (plot_transaction_type_fractions, {}),
         (add_temporal_features, {}),
         (analyze_overlap_accounts, {}),
@@ -1334,6 +1347,7 @@ def run_full_feature_pipeline(
     with_merchants_dir: str = "./data/FEwithMerchants",
     without_merchants_dir: str = "./data/FEwithoutMerchants",
     plots_dir: str | None = None,
+    train_label: str | None = None,
 ) -> SplitMap:
     """Apply every feature step to each split and optionally export the outputs."""
 
@@ -1341,39 +1355,51 @@ def run_full_feature_pipeline(
     for func, kwargs in tqdm(steps, desc="Running feature pipeline"):
         if plots_dir:
             kwargs['plots_dir'] = plots_dir
+        if 'split_label' in kwargs and train_label is not None:
+            kwargs['split_label'] = train_label
+        # Only apply to splits that exist in split_frames
         apply_to_splits(split_frames, func, **kwargs)
     if export:
-        export_featured_datasets(split_frames, with_merchants_dir, without_merchants_dir)
+        export_featured_datasets(
+            split_frames, with_merchants_dir, without_merchants_dir, train_label=train_label
+        )
     return split_frames
 
 
 def main():
-    """Load data from predefined paths, run feature pipeline, and export results."""
+    """Load data from predefined paths, run feature pipeline for each downsampled training set, and export results."""
     
-    # Define the paths to the data splits directly
+    # Process normal train/test/val split
     train_path = "./data/splits/train.csv"
     test_path = "./data/splits/test.csv"
     val_path = "./data/splits/val.csv"
     plots_dir = "./plots"
+    with_merchants_dir = "./data/FEwithMerchants"
+    without_merchants_dir = "./data/FEwithoutMerchants"
+
     os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(with_merchants_dir, exist_ok=True)
+    os.makedirs(without_merchants_dir, exist_ok=True)
 
     print(f"Loading training data from: {train_path}")
     print(f"Loading test data from: {test_path}")
     print(f"Loading validation data from: {val_path}")
-    
     df_train = pd.read_csv(train_path)
     df_test = pd.read_csv(test_path)
     df_val = pd.read_csv(val_path)
 
     split_frames = create_split_frames(df_train, df_test, df_val)
-    
-    print("\\nStarting feature engineering pipeline...")
-    run_full_feature_pipeline(split_frames, export=True, plots_dir=plots_dir)
-    print("Feature engineering pipeline complete.")
 
-    print("\n--- Dropping final columns ---")
-    for split_name in split_frames:
-        split_frames[split_name] = drop_final_columns(split_frames[split_name])
+    print("\nStarting feature engineering pipeline for normal splits...")
+    run_full_feature_pipeline(
+        split_frames,
+        export=True,
+        plots_dir=plots_dir,
+        with_merchants_dir=with_merchants_dir,
+        without_merchants_dir=without_merchants_dir,
+        train_label="train"
+    )
+    print("Feature engineering pipeline for normal splits complete.")
 
     print("\n--- Final Columns (with merchants) ---")
     for split_name, df in split_frames.items():
@@ -1382,8 +1408,37 @@ def main():
 
     print("\n--- Final Columns (without merchants) ---")
     for split_name, df in split_frames.items():
-        filtered_df = df[~df['nameDest'].str.contains('M')]
+        filtered_df = df[~df["nameDest"].str.contains('M')]
         print(f"\nColumns for {split_name} data (without merchants):")
+        print(filtered_df.columns)
+
+    # Process all downsampled train splits
+    downsampled_train_files = {
+        "downsampled_1to5": "./data/splits/train_downsampled_1to5.csv",
+        "downsampled_1to10": "./data/splits/train_downsampled_1to10.csv",
+    }
+    for label, train_path in downsampled_train_files.items():
+        print(f"\n{'='*20} PROCESSING {label.upper()} {'='*20}")
+        if not os.path.exists(train_path):
+            print(f"Warning: Training file not found at {train_path}. Skipping.")
+            continue
+        print(f"Loading training data from: {train_path}")
+        df_train = pd.read_csv(train_path)
+        split_frames = {"Train": df_train.copy()}
+        print(f"\nStarting feature engineering pipeline for {label}...")
+        run_full_feature_pipeline(
+            split_frames,
+            export=True,
+            plots_dir=plots_dir,
+            with_merchants_dir=with_merchants_dir,
+            without_merchants_dir=without_merchants_dir,
+            train_label=label
+        )
+        print(f"Feature engineering pipeline for {label} complete.")
+        print(f"\n--- Final Columns for {label} (with merchants) ---")
+        print(split_frames["Train"].columns)
+        print(f"\n--- Final Columns for {label} (without merchants) ---")
+        filtered_df = split_frames["Train"][~split_frames["Train"]["nameDest"].str.contains('M')]
         print(filtered_df.columns)
 
     
