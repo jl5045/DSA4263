@@ -1294,7 +1294,7 @@ def main():
 
 def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
     """Drop columns that are not usable for modeling as per Kaggle rules."""
-    cols_to_drop = ['newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
+    cols_to_drop = ['newbalanceOrig', 'newbalanceDest']
     # Check which columns exist before trying to drop
     cols_exist = [col for col in cols_to_drop if col in df.columns]
     if cols_exist:
