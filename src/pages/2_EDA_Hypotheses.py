@@ -67,12 +67,6 @@ display_plot(
 )
 
 display_plot(
-    "Hypothesis: Fraud follows predictable temporal patterns.",
-    "eda_fraud_count_over_time_steps.png",
-    "**Conclusion: True.** The plot of fraud count over time shows clear fluctuations, indicating that fraud incidents are not random and may follow specific time-based patterns that could be captured by time-related features."
-)
-
-display_plot(
     "Hypothesis: A small number of senders are responsible for a large portion of transaction volume.",
     "eda_top10_senders_total_amount.png",
     "**Conclusion: True.** The bar chart shows the top 10 senders which arev involved in at least 1 fraud transaction by total transaction amount, highlighting that a few accounts move significant funds, which could be a useful feature for anomaly detection."
