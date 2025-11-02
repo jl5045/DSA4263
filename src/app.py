@@ -16,9 +16,5 @@ st.markdown(
     trained to detect fraudulent financial transactions.
 
     **👈 Select a page from the sidebar** to explore different aspects of the project.
-
-    ### Pages:
-    - **Model Performance**: Visualize and compare the performance of the fraud detection model.
-    - **Live Fraud Prediction**: Input transaction details to get a real-time fraud prediction.
     """
 )
