@@ -14,6 +14,7 @@ import igraph as ig
 from collections import defaultdict
 import igraph as ig
 from collections import defaultdict
+from tqdm import tqdm
 
 try:  # Notebook runtime will have display, but set a safe fallback.
     from IPython.display import display
@@ -47,8 +48,7 @@ def apply_to_splits(
 ) -> SplitMap:
     """Run *func* for every split and store the returned dataframe back in-place."""
 
-    for split_name, split_df in split_frames.items():
-        print(f"\n>>> Running {func.__name__} for {split_name}")
+    for split_name, split_df in tqdm(split_frames.items(), desc=f"  Applying {func.__name__}", leave=False):
         split_frames[split_name] = func(split_df, split_name, **kwargs)
     return split_frames
 
@@ -403,58 +403,65 @@ def add_transaction_type_features(
 
 def add_sender_receiver_aggregations(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
     """Aggregate sender/receiver statistics and merge them back."""
+    with tqdm(total=5, desc=f"  Aggregations for {split_name}", leave=False) as pbar:
+        pbar.set_description("    - Sender aggregations")
+        sender_agg = df.groupby('nameOrig').agg({
+            'amount': ['sum', 'mean', 'std', 'count'],
+            'isFraud': 'max',
+        }).reset_index()
+        sender_agg.columns = ['nameOrig', 'totalSent', 'meanSent', 'stdSent', 'numSent', 'sender_has_fraud']
+        type_fractions = df.groupby(['nameOrig', 'type']).size().unstack(fill_value=0)
+        type_fractions = type_fractions.div(type_fractions.sum(axis=1), axis=0)
+        type_fractions.columns = [f'fraction_{col}' for col in type_fractions.columns]
+        type_fractions = type_fractions.reset_index()
+        sender_agg = sender_agg.merge(type_fractions, on='nameOrig', how='left')
+        pbar.update(1)
 
-    sender_agg = df.groupby('nameOrig').agg({
-        'amount': ['sum', 'mean', 'std', 'count'],
-        'isFraud': 'max',
-    }).reset_index()
-    sender_agg.columns = ['nameOrig', 'totalSent', 'meanSent', 'stdSent', 'numSent', 'sender_has_fraud']
+        pbar.set_description("    - Receiver aggregations")
+        receiver_agg = df.groupby('nameDest').agg({
+            'amount': ['sum', 'mean', 'std', 'count'],
+            'isFraud': 'max',
+        }).reset_index()
+        receiver_agg.columns = ['nameDest', 'totalReceived', 'meanReceived', 'stdReceived', 'numReceived', 'receiver_has_fraud']
+        type_fractions_recv = df.groupby(['nameDest', 'type']).size().unstack(fill_value=0)
+        type_fractions_recv = type_fractions_recv.div(type_fractions_recv.sum(axis=1), axis=0)
+        type_fractions_recv.columns = [f'fraction_{col}_recv' for col in type_fractions_recv.columns]
+        type_fractions_recv = type_fractions_recv.reset_index()
+        receiver_agg = receiver_agg.merge(type_fractions_recv, on='nameDest', how='left')
+        pbar.update(1)
 
-    type_fractions = df.groupby(['nameOrig', 'type']).size().unstack(fill_value=0)
-    type_fractions = type_fractions.div(type_fractions.sum(axis=1), axis=0)
-    type_fractions.columns = [f'fraction_{col}' for col in type_fractions.columns]
-    type_fractions = type_fractions.reset_index()
-    sender_agg = sender_agg.merge(type_fractions, on='nameOrig', how='left')
+        pbar.set_description("    - Merging aggregations")
+        df = df.merge(sender_agg, on='nameOrig', how='left')
+        df = df.merge(receiver_agg, on='nameDest', how='left')
+        pbar.update(1)
 
-    receiver_agg = df.groupby('nameDest').agg({
-        'amount': ['sum', 'mean', 'std', 'count'],
-        'isFraud': 'max',
-    }).reset_index()
-    receiver_agg.columns = ['nameDest', 'totalReceived', 'meanReceived', 'stdReceived', 'numReceived', 'receiver_has_fraud']
+        pbar.set_description("    - Neighbor fraud ratios (sender)")
+        sender_neighbor = df.groupby('nameOrig').agg({
+            'nameDest': 'nunique',
+            'receiver_has_fraud': 'sum',
+        }).reset_index()
+        sender_neighbor.columns = ['nameOrig', 'num_receivers', 'num_fraud_receivers']
+        sender_neighbor['fraudRatioAmongReceivers'] = (
+            sender_neighbor['num_fraud_receivers'] / sender_neighbor['num_receivers'].replace(0, np.nan)
+        )
+        df = df.merge(
+            sender_neighbor[['nameOrig', 'fraudRatioAmongReceivers']], on='nameOrig', how='left'
+        )
+        pbar.update(1)
 
-    type_fractions_recv = df.groupby(['nameDest', 'type']).size().unstack(fill_value=0)
-    type_fractions_recv = type_fractions_recv.div(type_fractions_recv.sum(axis=1), axis=0)
-    type_fractions_recv.columns = [f'fraction_{col}_recv' for col in type_fractions_recv.columns]
-    type_fractions_recv = type_fractions_recv.reset_index()
-    receiver_agg = receiver_agg.merge(type_fractions_recv, on='nameDest', how='left')
-
-    df = df.merge(sender_agg, on='nameOrig', how='left')
-    df = df.merge(receiver_agg, on='nameDest', how='left')
-
-    sender_neighbor = df.groupby('nameOrig').agg({
-        'nameDest': 'nunique',
-        'receiver_has_fraud': 'sum',
-    }).reset_index()
-    sender_neighbor.columns = ['nameOrig', 'num_receivers', 'num_fraud_receivers']
-    sender_neighbor['fraudRatioAmongReceivers'] = (
-        sender_neighbor['num_fraud_receivers'] / sender_neighbor['num_receivers'].replace(0, np.nan)
-    )
-
-    receiver_neighbor = df.groupby('nameDest').agg({
-        'nameOrig': 'nunique',
-        'sender_has_fraud': 'sum',
-    }).reset_index()
-    receiver_neighbor.columns = ['nameDest', 'num_senders', 'num_fraud_senders']
-    receiver_neighbor['fraudRatioAmongSenders'] = (
-        receiver_neighbor['num_fraud_senders'] / receiver_neighbor['num_senders'].replace(0, np.nan)
-    )
-
-    df = df.merge(
-        sender_neighbor[['nameOrig', 'fraudRatioAmongReceivers']], on='nameOrig', how='left'
-    )
-    df = df.merge(
-        receiver_neighbor[['nameDest', 'fraudRatioAmongSenders']], on='nameDest', how='left'
-    )
+        pbar.set_description("    - Neighbor fraud ratios (receiver)")
+        receiver_neighbor = df.groupby('nameDest').agg({
+            'nameOrig': 'nunique',
+            'sender_has_fraud': 'sum',
+        }).reset_index()
+        receiver_neighbor.columns = ['nameDest', 'num_senders', 'num_fraud_senders']
+        receiver_neighbor['fraudRatioAmongSenders'] = (
+            receiver_neighbor['num_fraud_senders'] / receiver_neighbor['num_senders'].replace(0, np.nan)
+        )
+        df = df.merge(
+            receiver_neighbor[['nameDest', 'fraudRatioAmongSenders']], on='nameDest', how='left'
+        )
+        pbar.update(1)
 
     print(f"{split_name}: Sender aggregation preview")
     print(sender_agg.head())
@@ -463,7 +470,7 @@ def add_sender_receiver_aggregations(df: pd.DataFrame, split_name: str, **kwargs
     return df
 
 
-def plot_sender_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None) -> pd.DataFrame:
+def plot_sender_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None, split_label: str = "") -> pd.DataFrame:
     """Visualise sender-level aggregation features."""
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -506,25 +513,29 @@ def plot_sender_features(df: pd.DataFrame, split_name: str, plots_dir: str | Non
         ax.set_ylabel('Density')
         ax.set_title(f'{split_name}: {title}')
         if metric in {'totalSent', 'meanSent', 'stdSent'}:
-            ax.set_xscale('log')
-            ax.set_yscale('log')
+            # Only apply log scale if there's positive data to prevent errors
+            non_fraud_data = df[df['isFraud'] == 0][metric].dropna()
+            fraud_data = df[df['isFraud'] == 1][metric].dropna()
+            if (non_fraud_data > 0).any() or (fraud_data > 0).any():
+                ax.set_xscale('log')
+                ax.set_yscale('log')
         if metric == 'numSent':
             ax.set_yscale('log')
         ax.legend()
 
     plt.tight_layout()
-    
+    title_label = f"{split_name} ({split_label})" if split_label else split_name
+    fig.suptitle(f"Sender Features: {title_label}", fontsize=16)
     if plots_dir:
-        plot_path = os.path.join(plots_dir, f"{split_name}_sender_features.png")
+        plot_path = os.path.join(plots_dir, f"{split_name}_{split_label}_sender_features.png")
         fig.savefig(plot_path)
         plt.close(fig)
     else:
         plt.show()
-        
     return df
 
 
-def plot_receiver_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None) -> pd.DataFrame:
+def plot_receiver_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None, split_label: str = "") -> pd.DataFrame:
     """Visualise receiver-level aggregation features."""
 
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -567,21 +578,25 @@ def plot_receiver_features(df: pd.DataFrame, split_name: str, plots_dir: str | N
         ax.set_ylabel('Density')
         ax.set_title(f'{split_name}: {title}')
         if metric in {'totalReceived', 'meanReceived', 'stdReceived'}:
-            ax.set_xscale('log')
-            ax.set_yscale('log')
+            # Only apply log scale if there's positive data to prevent errors
+            non_fraud_data = df[df['isFraud'] == 0][metric].dropna()
+            fraud_data = df[df['isFraud'] == 1][metric].dropna()
+            if (non_fraud_data > 0).any() or (fraud_data > 0).any():
+                ax.set_xscale('log')
+                ax.set_yscale('log')
         if metric == 'numReceived':
             ax.set_yscale('log')
         ax.legend()
 
     plt.tight_layout()
-    
+    title_label = f"{split_name} ({split_label})" if split_label else split_name
+    fig.suptitle(f"Receiver Features: {title_label}", fontsize=16)
     if plots_dir:
-        plot_path = os.path.join(plots_dir, f"{split_name}_receiver_features.png")
+        plot_path = os.path.join(plots_dir, f"{split_name}_{split_label}_receiver_features.png")
         fig.savefig(plot_path)
         plt.close(fig)
     else:
         plt.show()
-        
     return df
 
 
@@ -783,57 +798,69 @@ def create_transaction_sequence_features_efficient(
     df: pd.DataFrame, n_last_transactions: int
 ) -> pd.DataFrame:
     """Reproduce the sequence-based features used in the notebook."""
+    with tqdm(total=6, desc="    - Building sequence features", leave=False) as pbar:
+        pbar.set_description("      - Sorting data")
+        df = df.sort_values(['nameOrig', 'step']).reset_index(drop=True)
+        pbar.update(1)
 
-    df = df.sort_values(['nameOrig', 'step']).reset_index(drop=True)
-    for i in range(1, n_last_transactions + 1):
-        df[f'prev_type_{i}'] = df.groupby('nameOrig')['type'].shift(i)
+        pbar.set_description("      - Creating lagged features")
+        for i in range(1, n_last_transactions + 1):
+            df[f'prev_type_{i}'] = df.groupby('nameOrig')['type'].shift(i)
+        pbar.update(1)
 
-    sequence_cols = [f'prev_type_{i}' for i in range(n_last_transactions, 0, -1)] + ['type']
-    df['transaction_sequence'] = df[sequence_cols].apply(
-        lambda x: '→'.join(
-            [str(t) if pd.notna(t) else 'START' for t in x]
-        ),
-        axis=1,
-    )
+        pbar.set_description("      - Building sequence strings")
+        sequence_cols = [f'prev_type_{i}' for i in range(n_last_transactions, 0, -1)] + ['type']
+        df['transaction_sequence'] = df[sequence_cols].apply(
+            lambda x: '→'.join(
+                [str(t) if pd.notna(t) else 'START' for t in x]
+            ),
+            axis=1,
+        )
+        sequence_freq = df['transaction_sequence'].value_counts(normalize=True).to_dict()
+        df['sequence_frequency'] = df['transaction_sequence'].map(sequence_freq)
+        pbar.update(1)
 
-    sequence_freq = df['transaction_sequence'].value_counts(normalize=True).to_dict()
-    df['sequence_frequency'] = df['transaction_sequence'].map(sequence_freq)
+        pbar.set_description("      - Creating pattern flags")
+        df['is_cashin_transfer_cashout'] = (
+            (df['prev_type_2'] == 'CASH_IN')
+            & (df['prev_type_1'] == 'TRANSFER')
+            & (df['type'] == 'CASH_OUT')
+        ).astype(int)
+        df['is_transfer_cashout'] = (
+            (df['prev_type_1'] == 'TRANSFER') & (df['type'] == 'CASH_OUT')
+        ).astype(int)
+        df['is_cashin_transfer'] = (
+            (df['prev_type_1'] == 'CASH_IN') & (df['type'] == 'TRANSFER')
+        ).astype(int)
+        df['is_cashout_transfer'] = (
+            (df['prev_type_1'] == 'CASH_OUT') & (df['type'] == 'TRANSFER')
+        ).astype(int)
+        df['is_transfer_transfer'] = (
+            (df['prev_type_1'] == 'TRANSFER') & (df['type'] == 'TRANSFER')
+        ).astype(int)
+        df['is_first_transfer'] = (
+            (df['prev_type_1'] == 'START') & (df['type'] == 'TRANSFER')
+        ).astype(int)
+        df['is_cashin_cashout'] = (
+            (df['prev_type_1'] == 'CASH_IN') & (df['type'] == 'CASH_OUT')
+        ).astype(int)
+        df['is_early_transaction'] = (
+            (df['prev_type_2'] == 'START') | (df['prev_type_3'] == 'START')
+        ).astype(int)
+        pbar.update(1)
 
-    df['is_cashin_transfer_cashout'] = (
-        (df['prev_type_2'] == 'CASH_IN')
-        & (df['prev_type_1'] == 'TRANSFER')
-        & (df['type'] == 'CASH_OUT')
-    ).astype(int)
-    df['is_transfer_cashout'] = (
-        (df['prev_type_1'] == 'TRANSFER') & (df['type'] == 'CASH_OUT')
-    ).astype(int)
-    df['is_cashin_transfer'] = (
-        (df['prev_type_1'] == 'CASH_IN') & (df['type'] == 'TRANSFER')
-    ).astype(int)
-    df['is_cashout_transfer'] = (
-        (df['prev_type_1'] == 'CASH_OUT') & (df['type'] == 'TRANSFER')
-    ).astype(int)
-    df['is_transfer_transfer'] = (
-        (df['prev_type_1'] == 'TRANSFER') & (df['type'] == 'TRANSFER')
-    ).astype(int)
-    df['is_first_transfer'] = (
-        (df['prev_type_1'] == 'START') & (df['type'] == 'TRANSFER')
-    ).astype(int)
-    df['is_cashin_cashout'] = (
-        (df['prev_type_1'] == 'CASH_IN') & (df['type'] == 'CASH_OUT')
-    ).astype(int)
-    df['is_early_transaction'] = (
-        (df['prev_type_2'] == 'START') | (df['prev_type_3'] == 'START')
-    ).astype(int)
+        pbar.set_description("      - Label encoding previous types")
+        from sklearn.preprocessing import LabelEncoder
+        for i in range(1, n_last_transactions + 1):
+            col_name = f'prev_type_{i}'
+            encoder = LabelEncoder()
+            df[f'{col_name}_encoded'] = encoder.fit_transform(df[col_name].fillna('NONE'))
+        pbar.update(1)
 
-    from sklearn.preprocessing import LabelEncoder
-
-    for i in range(1, n_last_transactions + 1):
-        col_name = f'prev_type_{i}'
-        encoder = LabelEncoder()
-        df[f'{col_name}_encoded'] = encoder.fit_transform(df[col_name].fillna('NONE'))
-
-    df['sequence_count'] = df.groupby(['nameOrig', 'transaction_sequence']).cumcount() + 1
+        pbar.set_description("      - Counting sequence repetitions")
+        df['sequence_count'] = df.groupby(['nameOrig', 'transaction_sequence']).cumcount() + 1
+        pbar.update(1)
+        
     return df
 
 
@@ -904,42 +931,53 @@ def add_transaction_sequence_features(
 
 def add_forwarding_features(df: pd.DataFrame, split_name: str, plots_dir: str | None = None) -> pd.DataFrame:
     """Measure % of funds forwarded within 24h."""
+    with tqdm(total=4, desc=f"  Forwarding features for {split_name}", leave=False) as pbar:
+        pbar.set_description("    - Preparing incoming/outgoing data")
+        incoming = df[['step', 'nameDest', 'amount']].copy()
+        incoming.rename(columns={'nameDest': 'account', 'amount': 'amountReceived'}, inplace=True)
+        outgoing = df[['step', 'nameOrig', 'amount']].copy()
+        outgoing.rename(columns={'nameOrig': 'account', 'amount': 'amountSent'}, inplace=True)
+        merged = incoming.merge(outgoing, on='account', how='inner')
+        pbar.update(1)
 
-    incoming = df[['step', 'nameDest', 'amount']].copy()
-    incoming.rename(columns={'nameDest': 'account', 'amount': 'amountReceived'}, inplace=True)
-    outgoing = df[['step', 'nameOrig', 'amount']].copy()
-    outgoing.rename(columns={'nameOrig': 'account', 'amount': 'amountSent'}, inplace=True)
-    merged = incoming.merge(outgoing, on='account', how='inner')
-    merged['hours_diff'] = merged['step_y'] - merged['step_x']
-    within_24h = merged[(merged['hours_diff'] > 0) & (merged['hours_diff'] <= 24)]
-    total_received = incoming.groupby('account')['amountReceived'].sum().reset_index()
-    forwarded_24h = within_24h.groupby('account')['amountSent'].sum().reset_index(name='amountForwarded24h')
-    funds_forwarding = total_received.merge(forwarded_24h, on='account', how='left')
-    funds_forwarding['pctForwarded24h'] = (
-        funds_forwarding['amountForwarded24h'] / funds_forwarding['amountReceived'] * 100
-    )
-    funds_forwarding['pctForwarded24h'] = funds_forwarding['pctForwarded24h'].fillna(0)
-    df = df.merge(
-        funds_forwarding[['account', 'pctForwarded24h']],
-        left_on='nameOrig',
-        right_on='account',
-        how='left',
-    )
-    df.drop(columns='account', inplace=True)
+        pbar.set_description("    - Calculating time differences")
+        merged['hours_diff'] = merged['step_y'] - merged['step_x']
+        within_24h = merged[(merged['hours_diff'] > 0) & (merged['hours_diff'] <= 24)]
+        pbar.update(1)
 
-    fig = plt.figure(figsize=(8, 5))
-    sns.histplot(funds_forwarding['pctForwarded24h'], bins=30, kde=True)
-    plt.title(f'{split_name}: % of Received Funds Forwarded Within 24 Hours')
-    plt.xlabel('Percentage')
-    plt.ylabel('Number of Accounts')
-    
-    if plots_dir:
-        plot_path = os.path.join(plots_dir, f"{split_name}_forwarding_features.png")
-        fig.savefig(plot_path)
-        plt.close(fig)
-    else:
-        plt.show()
+        pbar.set_description("    - Aggregating forwarded funds")
+        total_received = incoming.groupby('account')['amountReceived'].sum().reset_index()
+        forwarded_24h = within_24h.groupby('account')['amountSent'].sum().reset_index(name='amountForwarded24h')
+        funds_forwarding = total_received.merge(forwarded_24h, on='account', how='left')
+        funds_forwarding['pctForwarded24h'] = (
+            funds_forwarding['amountForwarded24h'] / funds_forwarding['amountReceived'] * 100
+        )
+        funds_forwarding['pctForwarded24h'] = funds_forwarding['pctForwarded24h'].fillna(0)
+        pbar.update(1)
+
+        pbar.set_description("    - Merging features and plotting")
+        df = df.merge(
+            funds_forwarding[['account', 'pctForwarded24h']],
+            left_on='nameOrig',
+            right_on='account',
+            how='left',
+        )
+        df.drop(columns='account', inplace=True)
+
+        fig = plt.figure(figsize=(8, 5))
+        sns.histplot(funds_forwarding['pctForwarded24h'], bins=30, kde=True)
+        plt.title(f'{split_name}: % of Received Funds Forwarded Within 24 Hours')
+        plt.xlabel('Percentage')
+        plt.ylabel('Number of Accounts')
         
+        if plots_dir:
+            plot_path = os.path.join(plots_dir, f"{split_name}_forwarding_features.png")
+            fig.savefig(plot_path)
+            plt.close(fig)
+        else:
+            plt.show()
+        pbar.update(1)
+            
     return df
 
 
@@ -1097,44 +1135,55 @@ def add_network_features(
 
     df = df.copy()
     
-    # placeholder columns
-    for col in [
+    with tqdm(total=5, desc=f"  Network Features for {split_name}", leave=False) as pbar:
+        pbar.set_description("    - Initializing columns")
+        # placeholder columns
+        for col in [
+            "sender_btwn","receiver_btwn",
+            "sender_outdeg_amt","sender_indeg_amt",
+            "receiver_outdeg_amt","receiver_indeg_amt",
+            "sender_outdeg_cnt","sender_indeg_cnt",
+            "receiver_outdeg_cnt","receiver_indeg_cnt",
+            "btwn_diff","outdeg_amt_diff","indeg_amt_diff",
+            "outdeg_cnt_diff","indeg_cnt_diff"
+        ]:
+            df[col] = 0.0
+        pbar.update(1)
+
+        pbar.set_description("    - Building edgelist")
+        edges = df[["nameOrig","nameDest","amount"]]
+        agg = build_edgelist(edges)
+        pbar.update(1)
+
+        pbar.set_description("    - Computing centralities (this may take a while)")
+        cent = compute_centralities(agg)
+        pbar.update(1)
+
+        pbar.set_description("    - Mapping centrality features")
+        df["sender_btwn"] = df["nameOrig"].map(cent["btwn"]).fillna(0.0)
+        df["receiver_btwn"] = df["nameDest"].map(cent["btwn"]).fillna(0.0)
         
-        "sender_btwn","receiver_btwn",
-        "sender_outdeg_amt","sender_indeg_amt",
-        "receiver_outdeg_amt","receiver_indeg_amt",
-        "sender_outdeg_cnt","sender_indeg_cnt",
-        "receiver_outdeg_cnt","receiver_indeg_cnt",
-        "btwn_diff","outdeg_amt_diff","indeg_amt_diff",
-        "outdeg_cnt_diff","indeg_cnt_diff"
-    ]:
-        df[col] = 0.0
+        df["sender_outdeg_amt"] = df["nameOrig"].map(cent["outdeg_amt"]).fillna(0.0)
+        df["sender_indeg_amt"]  = df["nameOrig"].map(cent["indeg_amt"]).fillna(0.0)
+        df["receiver_outdeg_amt"] = df["nameDest"].map(cent["outdeg_amt"]).fillna(0.0)
+        df["receiver_indeg_amt"]  = df["nameDest"].map(cent["indeg_amt"]).fillna(0.0)
 
-    
-    edges = df[["nameOrig","nameDest","amount"]]
-    agg = build_edgelist(edges)
-    cent = compute_centralities(agg)
+        df["sender_outdeg_cnt"] = df["nameOrig"].map(cent["outdeg_cnt"]).fillna(0.0)
+        df["sender_indeg_cnt"]  = df["nameOrig"].map(cent["indeg_cnt"]).fillna(0.0)
+        df["receiver_outdeg_cnt"] = df["nameDest"].map(cent["outdeg_cnt"]).fillna(0.0)
+        df["receiver_indeg_cnt"]  = df["nameDest"].map(cent["indeg_cnt"]).fillna(0.0)
+        pbar.update(1)
 
-    df["sender_btwn"] = df["nameOrig"].map(cent["btwn"]).fillna(0.0)
-    df["receiver_btwn"] = df["nameDest"].map(cent["btwn"]).fillna(0.0)
-
-    df["sender_outdeg_amt"] = df["nameOrig"].map(cent["outdeg_amt"]).fillna(0.0)
-    df["sender_indeg_amt"]  = df["nameOrig"].map(cent["indeg_amt"]).fillna(0.0)
-    df["receiver_outdeg_amt"] = df["nameDest"].map(cent["outdeg_amt"]).fillna(0.0)
-    df["receiver_indeg_amt"]  = df["nameDest"].map(cent["indeg_amt"]).fillna(0.0)
-
-    df["sender_outdeg_cnt"] = df["nameOrig"].map(cent["outdeg_cnt"]).fillna(0.0)
-    df["sender_indeg_cnt"]  = df["nameOrig"].map(cent["indeg_cnt"]).fillna(0.0)
-    df["receiver_outdeg_cnt"] = df["nameDest"].map(cent["outdeg_cnt"]).fillna(0.0)
-    df["receiver_indeg_cnt"]  = df["nameDest"].map(cent["indeg_cnt"]).fillna(0.0)
-
-    df["btwn_diff"]  = df["sender_btwn"] - df["receiver_btwn"]    
-    df["outdeg_amt_diff"] = df["sender_outdeg_amt"] - df["receiver_outdeg_amt"]
-    df["indeg_amt_diff"]  = df["sender_indeg_amt"]  - df["receiver_indeg_amt"]
-    df["outdeg_cnt_diff"] = df["sender_outdeg_cnt"] - df["receiver_outdeg_cnt"]
-    df["indeg_cnt_diff"]  = df["sender_indeg_cnt"]  - df["receiver_indeg_cnt"]
+        pbar.set_description("    - Calculating feature differences")
+        df["btwn_diff"]  = df["sender_btwn"] - df["receiver_btwn"]    
+        df["outdeg_amt_diff"] = df["sender_outdeg_amt"] - df["receiver_outdeg_amt"]
+        df["indeg_amt_diff"]  = df["sender_indeg_amt"]  - df["receiver_indeg_amt"]
+        df["outdeg_cnt_diff"] = df["sender_outdeg_cnt"] - df["receiver_outdeg_cnt"]
+        df["indeg_cnt_diff"]  = df["sender_indeg_cnt"]  - df["receiver_indeg_cnt"]
+        pbar.update(1)
 
     return df
+
 
 def drop_final_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Drop final set of columns before saving the dataset."""
@@ -1160,6 +1209,7 @@ def export_featured_datasets(
     split_frames: SplitMap,
     with_merchants_dir: str = "./data/raw(withMerchants)",
     without_merchants_dir: str = "./data/raw(withoutMerchants)",
+    train_label: str | None = None,
 ) -> None:
     """Persist the engineered datasets with and without merchant destinations."""
 
@@ -1170,15 +1220,19 @@ def export_featured_datasets(
         # Drop columns before saving
         df_to_save = drop_final_columns(df.copy())
 
+        file_split_name = split_name.lower()
+        if split_name == "Train" and train_label:
+            file_split_name = f"train_{train_label}"
+
         with_path = os.path.join(
-            with_merchants_dir, f'FE_{split_name.lower()}_with_merchants.csv'
+            with_merchants_dir, f'FE_{file_split_name}_with_merchants.csv'
         )
         df_to_save.to_csv(with_path, index=False)
         print(f"Saved {split_name} (with merchants) to {with_path} | shape={df_to_save.shape}")
 
         filtered_df = df_to_save[~df_to_save['nameDest'].str.contains('M')]
         without_path = os.path.join(
-            without_merchants_dir, f'FE_{split_name.lower()}_without_merchants.csv'
+            without_merchants_dir, f'FE_{file_split_name}_without_merchants.csv'
         )
         filtered_df.to_csv(without_path, index=False)
         print(
@@ -1240,7 +1294,7 @@ def main():
 
 def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
     """Drop columns that are not usable for modeling as per Kaggle rules."""
-    cols_to_drop = ['oldbalanceOrg', 'newbalanceOrig', 'newbalanceDest', 'oldbalanceDest']
+    cols_to_drop = ['newbalanceOrig', 'newbalanceDest']
     # Check which columns exist before trying to drop
     cols_exist = [col for col in cols_to_drop if col in df.columns]
     if cols_exist:
@@ -1248,11 +1302,21 @@ def drop_unusable_columns(df: pd.DataFrame, split_name: str, **kwargs) -> pd.Dat
         print(f"Dropped columns from {split_name}: {cols_exist}")
     return df
 
+def add_amount_ratio(df: pd.DataFrame, split_name: str, **kwargs) -> pd.DataFrame:
+    """Add amount_to_oldbalanceOrg feature."""
+    if 'amount' in df.columns and 'oldbalanceOrg' in df.columns:
+        df['amount_to_oldbalanceOrg'] = df['amount'] / df['oldbalanceOrg'].replace(0, np.nan)
+        print(f"{split_name}: Added 'amount_to_oldbalanceOrg' successfully.")
+    else:
+        print(f"{split_name}: Skipped — missing required columns.")
+    return df
+
 
 def build_default_pipeline() -> List[FeatureStep]:
     """Return the ordered list of feature functions plus their kwargs."""
 
     return [
+        (add_amount_ratio, {}),
         (drop_unusable_columns, {}),
         (transaction_velocity, {}),
         (add_avg_amount_features, {}),
@@ -1260,8 +1324,8 @@ def build_default_pipeline() -> List[FeatureStep]:
         (plot_receiver_type_heatmap, {}),
         (add_transaction_type_features, {}),
         (add_sender_receiver_aggregations, {}),
-        (plot_sender_features, {}),
-        (plot_receiver_features, {}),
+        (plot_sender_features, {"split_label": ""}),
+        (plot_receiver_features, {"split_label": ""}),
         (plot_transaction_type_fractions, {}),
         (add_temporal_features, {}),
         (analyze_overlap_accounts, {}),
@@ -1283,46 +1347,59 @@ def run_full_feature_pipeline(
     with_merchants_dir: str = "./data/FEwithMerchants",
     without_merchants_dir: str = "./data/FEwithoutMerchants",
     plots_dir: str | None = None,
+    train_label: str | None = None,
 ) -> SplitMap:
     """Apply every feature step to each split and optionally export the outputs."""
 
     steps = list(pipeline) if pipeline is not None else build_default_pipeline()
-    for func, kwargs in steps:
+    for func, kwargs in tqdm(steps, desc="Running feature pipeline"):
         if plots_dir:
             kwargs['plots_dir'] = plots_dir
+        if 'split_label' in kwargs and train_label is not None:
+            kwargs['split_label'] = train_label
+        # Only apply to splits that exist in split_frames
         apply_to_splits(split_frames, func, **kwargs)
     if export:
-        export_featured_datasets(split_frames, with_merchants_dir, without_merchants_dir)
+        export_featured_datasets(
+            split_frames, with_merchants_dir, without_merchants_dir, train_label=train_label
+        )
     return split_frames
 
 
 def main():
-    """Load data from predefined paths, run feature pipeline, and export results."""
+    """Load data from predefined paths, run feature pipeline for each downsampled training set, and export results."""
     
-    # Define the paths to the data splits directly
+    # Process normal train/test/val split
     train_path = "./data/splits/train.csv"
     test_path = "./data/splits/test.csv"
     val_path = "./data/splits/val.csv"
     plots_dir = "./plots"
+    with_merchants_dir = "./data/FEwithMerchants"
+    without_merchants_dir = "./data/FEwithoutMerchants"
+
     os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(with_merchants_dir, exist_ok=True)
+    os.makedirs(without_merchants_dir, exist_ok=True)
 
     print(f"Loading training data from: {train_path}")
     print(f"Loading test data from: {test_path}")
     print(f"Loading validation data from: {val_path}")
-    
     df_train = pd.read_csv(train_path)
     df_test = pd.read_csv(test_path)
     df_val = pd.read_csv(val_path)
 
     split_frames = create_split_frames(df_train, df_test, df_val)
-    
-    print("\\nStarting feature engineering pipeline...")
-    run_full_feature_pipeline(split_frames, export=True, plots_dir=plots_dir)
-    print("Feature engineering pipeline complete.")
 
-    print("\n--- Dropping final columns ---")
-    for split_name in split_frames:
-        split_frames[split_name] = drop_final_columns(split_frames[split_name])
+    print("\nStarting feature engineering pipeline for normal splits...")
+    run_full_feature_pipeline(
+        split_frames,
+        export=True,
+        plots_dir=plots_dir,
+        with_merchants_dir=with_merchants_dir,
+        without_merchants_dir=without_merchants_dir,
+        train_label="train"
+    )
+    print("Feature engineering pipeline for normal splits complete.")
 
     print("\n--- Final Columns (with merchants) ---")
     for split_name, df in split_frames.items():
@@ -1331,8 +1408,37 @@ def main():
 
     print("\n--- Final Columns (without merchants) ---")
     for split_name, df in split_frames.items():
-        filtered_df = df[~df['nameDest'].str.contains('M')]
+        filtered_df = df[~df["nameDest"].str.contains('M')]
         print(f"\nColumns for {split_name} data (without merchants):")
+        print(filtered_df.columns)
+
+    # Process all downsampled train splits
+    downsampled_train_files = {
+        "downsampled_1to5": "./data/splits/train_downsampled_1to5.csv",
+        "downsampled_1to10": "./data/splits/train_downsampled_1to10.csv",
+    }
+    for label, train_path in downsampled_train_files.items():
+        print(f"\n{'='*20} PROCESSING {label.upper()} {'='*20}")
+        if not os.path.exists(train_path):
+            print(f"Warning: Training file not found at {train_path}. Skipping.")
+            continue
+        print(f"Loading training data from: {train_path}")
+        df_train = pd.read_csv(train_path)
+        split_frames = {"Train": df_train.copy()}
+        print(f"\nStarting feature engineering pipeline for {label}...")
+        run_full_feature_pipeline(
+            split_frames,
+            export=True,
+            plots_dir=plots_dir,
+            with_merchants_dir=with_merchants_dir,
+            without_merchants_dir=without_merchants_dir,
+            train_label=label
+        )
+        print(f"Feature engineering pipeline for {label} complete.")
+        print(f"\n--- Final Columns for {label} (with merchants) ---")
+        print(split_frames["Train"].columns)
+        print(f"\n--- Final Columns for {label} (without merchants) ---")
+        filtered_df = split_frames["Train"][~split_frames["Train"]["nameDest"].str.contains('M')]
         print(filtered_df.columns)
 
     

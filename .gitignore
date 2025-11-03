@@ -1,4 +1,5 @@
 venv/
-data/raw/
-data/
+data/*
 notebooks/__pycache__/
+lib/
+.DS_Store
