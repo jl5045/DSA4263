@@ -16,3 +16,4 @@ networkx
 plotly
 kaleido
 tqdm
+tensorflow
