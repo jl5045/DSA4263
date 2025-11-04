@@ -91,31 +91,40 @@ st.header("💡 Key Insights & Conclusions")
 st.markdown("""
 ### Model Performance Summary:
 - **F1-Score: 0.0107** - Extremely low F1-score indicates poor balance between precision and recall
-- **ROC-AUC: 0.8262** - Moderate discriminative ability, but misleading for heavily imbalanced datasets
+- **PR-AUC: 0.0185** - Very poor performance on the precision-recall tradeoff for fraud detection
 
 ### Critical Analysis:
 
-#### Why the Model Performs Poorly:
+#### ❌ Why the Model Performs Poorly:
 1. **Severe Class Imbalance**: The dataset is heavily skewed toward non-fraud cases
 2. **Low Precision**: The model produces many false positives (non-fraud predicted as fraud)
 3. **Low Recall**: The model misses many actual fraud cases (false negatives)
-4. **Misleading ROC-AUC**: While ROC-AUC is 0.83, it doesn't reflect real-world performance on the minority class
+4. **Extremely Low PR-AUC**: A score of 0.0185 indicates the model barely outperforms random guessing on the fraud class
 
-#### F1-Score vs ROC-AUC Discrepancy:
-- **ROC-AUC** measures overall ranking ability but treats both classes equally
-- **F1-Score** directly measures performance on the positive (fraud) class
-- The large gap (0.83 vs 0.01) reveals the model struggles specifically with fraud detection despite decent ranking
+#### 📊 Understanding the Metrics:
+- **F1-Score (0.0107)**: Harmonic mean of precision and recall - extremely low suggests the model cannot reliably identify fraud
+- **PR-AUC (0.0185)**: Measures the area under the precision-recall curve
+  - For imbalanced datasets, this is the **most informative metric**
+  - A score near 0 means the model has almost no ability to distinguish fraud from non-fraud
+  - Random guessing would achieve ~0.001 (baseline fraud rate), so 0.0185 is only marginally better
+
+#### 🔍 Why Both Metrics Are So Low:
+- The model's **linear decision boundary** cannot capture complex fraud patterns
+- **Balanced class weights** are insufficient to overcome the extreme imbalance
+- Simple features from raw data lack the discriminative power needed
+- The model likely predicts "non-fraud" for most cases to minimize error on the majority class
 
 ### Model Interpretation:
 - **Logistic Regression** provides interpretable coefficients for each feature
 - The model uses **balanced class weights** to handle imbalance, but it's insufficient
 - **Simple linear decision boundary** cannot capture complex fraud patterns
+- Serves as a **sanity check baseline** - any viable model must significantly outperform these scores
 
 ### Conclusions:
-**Logistic Regression is NOT suitable as a production model** for this fraud detection task due to:
-- Unacceptably low F1-score (1%)
-- Poor real-world fraud detection performance
-- Linear assumptions that don't match complex fraud behaviors
+🔴 **Logistic Regression is NOT suitable for this fraud detection task:**
+- PR-AUC of 0.0185 indicates near-zero fraud detection capability
+- F1-Score of 0.0107 means almost no true fraud is correctly identified
+- Linear assumptions fundamentally incompatible with fraud patterns
 
 """
 )
