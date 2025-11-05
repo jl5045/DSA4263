@@ -1,0 +1,35 @@
+# Ignore all data directories (will be mounted as volume)
+data/
+
+# Ignore all models directories (will be mounted as volume)
+models/
+
+# Ignore notebooks and notebooks cache
+notebooks/
+.ipynb_checkpoints/
+
+# Ignore git and development files
+.git/
+.gitignore
+.env
+.DS_Store
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# Ignore original requirements (use requirements-docker.txt instead)
+requirements.txt
+
+# Ignore documentation and other files
+README.md
+Dockerfile
+.dockerignore
+venv/
+.vscode/
+
+
+

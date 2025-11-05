@@ -1,0 +1,16 @@
+# Streamlit Application Requirements Only (Dockerized)
+# Excludes notebook-specific libraries like jupyter, ipython, etc.
+
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+xgboost
+streamlit
+pyvis
+networkx
+plotly
+kaleido
+tensorflow
+shap

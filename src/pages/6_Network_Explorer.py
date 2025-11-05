@@ -18,18 +18,20 @@ By exploring these networks, we can understand the patterns that the model uses 
 """)
 
 # --- Data Loading ---
+# Note: Using downsampled train data for memory efficiency
 DATASET_PATHS = {
     "Test without Merchants": "./data/FEwithoutMerchants/FE_test_without_merchants.csv",
-    "Train without Merchants": "./data/FEwithoutMerchants/FE_train_without_merchants.csv",
     "Validation without Merchants": "./data/FEwithoutMerchants/FE_validation_without_merchants.csv",
+    "Train (Downsampled 1:5) without Merchants": "./data/FEwithoutMerchants/FE_train_downsampled_1to5_without_merchants.csv",
+    "Train (Downsampled 1:10) without Merchants": "./data/FEwithoutMerchants/FE_train_downsampled_1to10_without_merchants.csv",
     "Test with Merchants": "./data/FEwithMerchants/FE_test_with_merchants.csv",
-    "Train with Merchants": "./data/FEwithMerchants/FE_train_with_merchants.csv",
     "Validation with Merchants": "./data/FEwithMerchants/FE_validation_with_merchants.csv",
+    "Train (Downsampled 1:5) with Merchants": "./data/FEwithMerchants/FE_train_downsampled_1to5_with_merchants.csv",
+    "Train (Downsampled 1:10) with Merchants": "./data/FEwithMerchants/FE_train_downsampled_1to10_with_merchants.csv",
 }
 
-@st.cache_data
 def load_data(path: str):
-    """Loads the specified feature-engineered dataset."""
+    """Loads the specified feature-engineered dataset (no caching to prevent memory issues)."""
     try:
         df = pd.read_csv(path)
         return df
@@ -43,10 +45,19 @@ selected_dataset_name = st.sidebar.selectbox(
     list(DATASET_PATHS.keys())
 )
 
-df = load_data(DATASET_PATHS[selected_dataset_name])
+# Clear cache button to manually free memory
+if st.sidebar.button("🗑️ Clear Memory Cache"):
+    st.cache_data.clear()
+    st.sidebar.success("Cache cleared! Switch datasets to free memory.")
+    st.rerun()
+
+st.sidebar.info("💡 Tip: Each dataset is ~300MB. If the app crashes, click 'Clear Memory Cache' before loading a new dataset.")
+
+with st.spinner(f"Loading {selected_dataset_name}..."):
+    df = load_data(DATASET_PATHS[selected_dataset_name])
 
 if df is not None:
-    st.info(f"Currently exploring the **{selected_dataset_name}** dataset.")
+    st.info(f"Currently exploring the **{selected_dataset_name}** dataset with **{len(df):,}** transactions.")
     # --- Interactive Fraud Cluster Selection ---
     all_node_degrees = pd.concat([df['nameOrig'], df['nameDest']]).value_counts()
 

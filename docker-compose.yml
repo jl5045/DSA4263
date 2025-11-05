@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  streamlit:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      # Mount lightweight data directory (only test/validation, no huge train files)
+      - ./data-docker:/app/data
+      - ./plots:/app/plots
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_CLIENT_LOGGER_LEVEL=info
+      - STREAMLIT_LOGGER_LEVEL=info
+    container_name: dsa4263-fraud-detection
+    # Memory limits for docker-compose (not swarm mode)
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 2
