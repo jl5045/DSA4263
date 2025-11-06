@@ -1,8 +1,8 @@
-# 🛡️ Financial Fraud Detection System
+# Mobile Transaction Fraud Detection System
 
-A comprehensive machine learning solution for detecting fraudulent financial transactions, combining exploratory data analysis, feature engineering, and multiple machine learning models (Logistic Regression, Neural Networks, XGBoost, and Stacking Ensemble).
+A comprehensive machine learning solution for detecting fraudulent financial mobile transactions, combining exploratory data analysis, feature engineering, and multiple machine learning models (Logistic Regression, Neural Networks, XGBoost, and Stacking Ensemble).
 
-**Project Repository:** [DSA4263](https://github.com/jl5045/DSA4263)
+Data: [Kaggle Mobile Transaction Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
 
 ---
 
