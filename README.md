@@ -317,10 +317,10 @@ The project implements and compares four different ML approaches:
 
 | Model | Type | Best Use Case | Key Metric |
 |-------|------|---------------|-----------|
-| **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple |
-| **Neural Network** | Deep Learning | Complex patterns | High accuracy |
-| **XGBoost** | Gradient Boosting | Feature importance | Balanced performance |
-| **Stacking Ensemble** | Meta-Learner | Best overall | Combined strengths |
+| **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple, but poor accuracy |
+| **Neural Network** | Deep Learning | Complex patterns | Mediocre accuracy |
+| **XGBoost** | Gradient Boosting | Feature importance | High accuracy |
+| **Stacking Ensemble** | Meta-Learner | Best overall | Combined strengths of Neural Network and XG Boost |
 
 ### Metrics Tracked
 - **Precision:** False positive control
@@ -331,7 +331,7 @@ The project implements and compares four different ML approaches:
 
 **Main Metrics Tracked:**
 
-PR-AUC, with F1 score as the tie breaker
+- PR-AUC, with F1 score as the tie breaker
 ---
 
 ## 🐳 Docker Deployment
