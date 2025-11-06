@@ -47,7 +47,7 @@ The system follows a comprehensive pipeline from data ingestion through model de
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                   Data Sources & Processing                      │
+│                   Data Sources & Processing                     │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Raw Financial Transactions                                   │
 │  • Feature Engineering (Jupyter Notebooks)                      │
@@ -56,7 +56,7 @@ The system follows a comprehensive pipeline from data ingestion through model de
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              Model Training & Development                        │
+│              Model Training & Development                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ • Logistic Regression (Baseline)                         │   │
@@ -68,7 +68,7 @@ The system follows a comprehensive pipeline from data ingestion through model de
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│          Interactive Streamlit Application                       │
+│          Interactive Streamlit Application                      │
 ├─────────────────────────────────────────────────────────────────┤
 │  • EDA & Hypothesis Validation                                  │
 │  • Feature Importance Analysis                                  │
