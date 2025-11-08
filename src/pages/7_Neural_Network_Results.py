@@ -35,6 +35,14 @@ else:
 
 # Section 2: Confusion Matrix
 st.header("🎯 Confusion Matrix")
+st.markdown("""
+**How to read this plot:**
+- **True Positives (bottom right):** Correctly identified frauds
+- **True Negatives (top left):** Correctly identified non-fraud
+- **False Positives (top right):** Non-fraud flagged as fraud (false alarm)
+- **False Negatives (bottom left):** Missed frauds (dangerous)
+- **Goal:** High numbers on diagonal, low off-diagonal
+""")
 confusion_matrix_path = os.path.join(plots_dir, "neural_network_confusion_matrix.png")
 if os.path.exists(confusion_matrix_path):
     img = Image.open(confusion_matrix_path)
@@ -47,6 +55,13 @@ st.divider()
 # Section 3: Precision-Recall Curve
 st.header("📈 Performance Curve")
 st.subheader("Precision-Recall Curve")
+st.markdown("""
+**How to read this plot:**
+- **Precision:** Accuracy of fraud alerts
+- **Recall:** % of fraud caught
+- **Goal:** Curve near top-right (high precision and recall)
+- **More informative than ROC for imbalanced data**
+""")
 pr_curve_path = os.path.join(plots_dir, "neural_network_pr_curve.png")
 if os.path.exists(pr_curve_path):
     img = Image.open(pr_curve_path)
@@ -58,16 +73,15 @@ st.divider()
 
 # Section 4: Feature Importance
 st.header("🔢 Feature Importance")
-
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Standard Feature Importance")
     st.markdown("""
-    Feature importance based on the neural network's first-layer weights.
-    
-    **Note:** For deep networks, these raw first-layer weights are only a proxy for importance — 
-    for reliable feature importance, use SHAP or permutation importance (shown in the next column).
+    **How to read this plot:**
+    - **Higher bars:** More important features for fraud detection
+    - **Shows which transaction characteristics drive model decisions**
+    - **Note:** For deep networks, these raw first-layer weights are only a proxy for importance
     """)
     feature_importance_path = os.path.join(plots_dir, "neural_network_feature_importance.png")
     if os.path.exists(feature_importance_path):
@@ -79,8 +93,10 @@ with col1:
 with col2:
     st.subheader("SHAP Feature Importance")
     st.markdown("""
-    SHAP (SHapley Additive exPlanations) values provide a unified measure of feature importance.
-    Shows the average impact of each feature on model predictions across all samples.
+    **How to read this plot:**
+    - **Higher bars:** Features with greater impact on model predictions
+    - **SHAP values:** Show average effect of each feature on output
+    - **Goal:** Identify which features most strongly affect model predictions
     """)
     feature_importance_shap_path = os.path.join(plots_dir, "neural_network_feature_importance_SHAP.png")
     if os.path.exists(feature_importance_shap_path):

@@ -35,6 +35,14 @@ else:
 
 # Section 2: Confusion Matrix
 st.header("🎯 Confusion Matrix")
+st.markdown("""
+**How to read this plot:**
+- **True Positives (bottom right):** Correctly identified frauds
+- **True Negatives (top left):** Correctly identified non-fraud
+- **False Positives (top right):** Non-fraud flagged as fraud (false alarm)
+- **False Negatives (bottom left):** Missed frauds (dangerous)
+- **Goal:** High numbers on diagonal, low off-diagonal
+""")
 confusion_matrix_path = os.path.join(plots_dir, "logistic_regression_confusion_matrix.png")
 if os.path.exists(confusion_matrix_path):
     img = Image.open(confusion_matrix_path)
@@ -50,6 +58,12 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("ROC Curve")
+    st.markdown("""
+    **How to read this plot:**
+    - **Curve above diagonal:** Model performs better than random
+    - **Area under curve (AUC):** Higher is better
+    - **Goal:** Curve hugs top-left corner (high TPR, low FPR)
+    """)
     roc_curve_path = os.path.join(plots_dir, "logistic_regression_roc_curve.png")
     if os.path.exists(roc_curve_path):
         img = Image.open(roc_curve_path)
@@ -59,6 +73,13 @@ with col1:
 
 with col2:
     st.subheader("Precision-Recall Curve")
+    st.markdown("""
+    **How to read this plot:**
+    - **Precision:** Accuracy of fraud alerts
+    - **Recall:** % of fraud caught
+    - **Goal:** Curve near top-right (high precision and recall)
+    - **More informative than ROC for imbalanced data**
+    """)
     pr_curve_path = os.path.join(plots_dir, "logistic_regression_pr_curve.png")
     if os.path.exists(pr_curve_path):
         img = Image.open(pr_curve_path)
@@ -71,11 +92,12 @@ st.divider()
 # Section 4: Feature Importance
 st.header("🔢 Feature Importance")
 st.markdown("""
-The coefficients show how each feature contributes to the model's prediction. 
-- **Green bars**: Positive coefficients (increase fraud probability)
-- **Red bars**: Negative coefficients (decrease fraud probability)
+**How to read this plot:**
+- **Green bars:** Features that increase fraud probability
+- **Red bars:** Features that decrease fraud probability
+- **Longer bars:** More influential features
+- **Goal:** Identify which features most strongly affect model predictions
 """)
-
 feature_importance_path = os.path.join(plots_dir, "logistic_regression_feature_importance.png")
 if os.path.exists(feature_importance_path):
     img = Image.open(feature_importance_path)
