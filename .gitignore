@@ -4,3 +4,4 @@ data-docker/*
 notebooks/__pycache__/
 lib/
 .DS_Store
+.venv/
