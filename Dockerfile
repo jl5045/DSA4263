@@ -24,7 +24,7 @@ COPY src/ ./src/
 COPY plots/ ./plots/
 
 # Create directories for volumes (data and models will be mounted at runtime)
-RUN mkdir -p ./data 
+RUN mkdir -p ./data ./models 
 
 # Expose port for Streamlit
 EXPOSE 8501
