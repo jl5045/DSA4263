@@ -109,11 +109,13 @@ DSA4263/
 │   └── pages/
 │      ├── 2_EDA_Hypotheses.py       # Data exploration dashboard
 │      ├── 3_Feature_Engineering_Hypotheses.py  # Feature analysis
-│      ├── 4_Logistic_Regression_Results.py     # LR model results
-│      ├── 5_Live_Fraud_Prediction.py           # Real-time predictions
-│      ├── 6_Network_Explorer.py                # Fraud network viz
-│      ├── 7_Model_Comparison.py                # Model performance
-│      └── 7_Stacking_Ensemble_Model.py         # Ensemble results
+│      ├── 4_Network_Explorer.py                # Fraud network visualization
+│      ├── 5_Logistic_Regression_Results.py     # LR model results
+│      ├── 6_XGBoost_Results.py                 # XGBoost model results
+│      ├── 7_Neural_Network_Results.py          # Neural Network results
+│      ├── 8_Stacking_Ensemble_Model.py         # Ensemble model results
+│      ├── 9_Model_Comparison.py                # All models comparison
+│      └── 10_Live_Fraud_Prediction.py          # Live predictions with XGBoost
 │   
 │
 ├── data/                              # Data directories
@@ -138,6 +140,7 @@ DSA4263/
 ├── docker-compose.yml                 # Docker compose setup
 ├── .dockerignore                      # Docker build exclusions
 ├── setup-docker-data.sh              # Data preparation script
+├── run_notebooks.sh                  # Automated notebook execution script
 ├── requirements.txt                   # Python dependencies
 └── README.md                          # This file
 ```
@@ -229,15 +232,45 @@ The notebook workflow is organized sequentially for a complete development pipel
 
 ### Running Notebooks
 
-**Option 1: Jupyter Lab**
+You have three options to run the notebooks:
+
+**Option 1: Run All Notebooks Automatically (Recommended for First Time)**
+```bash
+# Install dependencies first (if not done already)
+pip install -r requirements.txt
+
+# Execute entire pipeline in correct order
+chmod +x run_notebooks.sh
+./run_notebooks.sh
+```
+This script will:
+1. Run all notebooks sequentially (0_EDA → 1a_train_test_val_split → 1b_Resampling → Feature Engineering → Models)
+2. Execute the feature engineering Python script
+3. Train all models (Logistic Regression, Neural Network, XGBoost, Ensemble)
+4. Generate all necessary outputs for the Streamlit app
+
+⚠️ **Note:** 
+- This can take a significant amount of time (30+ minutes depending on your machine)
+- Requires `jupyter` and `nbconvert` (included in requirements.txt)
+- If you encounter errors, you can run notebooks individually (see Option 2)
+
+**Option 2: Run Notebooks Manually in Jupyter Lab**
 ```bash
 jupyter lab
 ```
-Navigate to `notebooks/` and open desired notebook.
+Navigate to `notebooks/` and run notebooks in this order:
+1. `0_EDA.ipynb` - Exploratory Data Analysis
+2. `1a_train_test_val_split.ipynb` - Data Splitting
+3. `1b_Resampling.ipynb` - Class Imbalance Handling
+4. `2_Feature_Engineering_Pipeline.py` - Feature Engineering (run as Python script)
+5. `3_Logistic_Regression.ipynb` - Baseline Model
+6. `4_Neural_Network.ipynb` - Deep Learning Model
+7. `5_XGBoost.ipynb` - Gradient Boosting Model
+8. `6_Ensemble_Model.ipynb` - Stacking Ensemble
 
-**Option 2: VS Code**
+**Option 3: Run in VS Code**
 - Install Jupyter extension in VS Code
-- Open `.ipynb` files directly and run cells
+- Open `.ipynb` files directly and run cells in the order listed above
 
 ---
 
@@ -270,44 +303,78 @@ The app will open at `http://localhost:8501`
 - Engineering approach effectiveness demonstration
 - Displays precomputed plots from `plots/` directory
 
-#### **Logistic Regression Results** (`4_Logistic_Regression_Results.py`)
-- Baseline model performance metrics (F1-score, PR-AUC, ROC-AUC)
-- Confusion matrix visualization
-- ROC curve and PR curve comparisons
-- Model interpretation for fraud detection
+#### **EDA Hypotheses** (`2_EDA_Hypotheses.py`)
+- Visual validation of key data hypotheses
+- Transaction type fraud concentration analysis
+- Transaction amount patterns for fraud vs. legitimate
+- Top senders analysis
+- Multicollinearity detection using VIF (Variance Inflation Factor)
 - Displays precomputed plots from `plots/` directory
 
-#### **Neural Network Results** (`6_Neural_Network_Results.py`)
-- Deep learning model performance metrics
-- Training history and convergence analysis
-- Confusion matrix and performance curves
-- Complex pattern capture validation
+#### **Feature Engineering Hypotheses** (`3_Feature_Engineering_Hypotheses.py`)
+- Visual validation of feature engineering decisions
+- Feature importance analysis
+- Feature correlation and relationship visualization
+- Engineering approach effectiveness demonstration
 - Displays precomputed plots from `plots/` directory
 
-#### **Live Fraud Prediction** (`5_Live_Fraud_Prediction.py`)
-- Interactive transaction input form (coming soon)
-- Real-time fraud probability prediction
-- Model confidence scores and explanations
-
-#### **Network Explorer** (`6_Network_Explorer.py`)
+#### **Network Explorer** (`4_Network_Explorer.py`)
 - Interactive fraud network visualization
 - Node connections between accounts and merchants
 - Dataset selection (with/without merchants, various downsampling ratios)
 - Graph analytics to identify fraud patterns
 - Memory-efficient data loading with cache clearing option
 
-#### **Model Comparison** (`7_Model_Comparison.py`)
-- Side-by-side performance metrics for all models
-- Overall model performance summary
-- Model selection guidance
+#### **Logistic Regression Results** (`5_Logistic_Regression_Results.py`)
+- Baseline model performance metrics (F1-score, PR-AUC, ROC-AUC)
+- Confusion matrix visualization
+- ROC curve and PR curve comparisons
+- Model interpretation for fraud detection
+- "How to read this plot" sections for clarity
 - Displays precomputed plots from `plots/` directory
 
-#### **Stacking Ensemble Model** (`7_Stacking_Ensemble_Model.py`)
-- Ensemble model combining multiple base models
-- Individual model contributions analysis
-- Performance comparison: Ensemble vs. individual models
-- Meta-learner results and effectiveness
+#### **XGBoost Results** (`6_XGBoost_Results.py`)
+- Gradient boosting model performance metrics
+- Confusion matrix and performance evaluation
+- Feature importance analysis
+- ROC and PR curve visualizations
+- Model interpretation and predictions
+- "How to read this plot" explanations
 - Displays precomputed plots from `plots/` directory
+
+#### **Neural Network Results** (`7_Neural_Network_Results.py`)
+- Deep learning model performance metrics
+- Training history and convergence analysis
+- Standard feature importance vs. SHAP feature importance
+- Confusion matrix and performance curves
+- Complex pattern capture validation
+- "How to read this plot" explanations
+- Displays precomputed plots from `plots/` directory
+
+#### **Stacking Ensemble Model** (`8_Stacking_Ensemble_Model.py`)
+- Best-performing ensemble combining multiple base models
+- Performance comparison: Ensemble vs. individual models (e.g., 1.75x better than Neural Network)
+- Individual model contributions analysis
+- Meta-learner results and effectiveness
+- "How to read this plot" interpretability sections
+- Displays precomputed plots from `plots/` directory
+
+#### **Model Comparison** (`9_Model_Comparison.py`)
+- Side-by-side performance metrics for all four models
+- Comprehensive metrics table (F1, PR-AUC, ROC-AUC, etc.)
+- Stacking Ensemble highlighted as best performing
+- Model selection guidance with metric-based justification
+- Loads metrics automatically from all model result files
+
+#### **Live Fraud Prediction** (`10_Live_Fraud_Prediction.py`)
+- Real-time fraud probability predictions using XGBoost model
+- Two modes: sample dataset or CSV file upload
+- Batch prediction on multiple transactions
+- Risk classification (High/Medium/Low)
+- Results table with fraud probability and risk level
+- Summary statistics by risk level
+- CSV export of predictions
+- Complete feature set (56 engineered features)
 
 ---
 
@@ -317,10 +384,10 @@ The project implements and compares four different ML approaches:
 
 | Model | Type | Best Use Case | Key Metric |
 |-------|------|---------------|-----------|
-| **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple, but poor accuracy |
-| **Neural Network** | Deep Learning | Complex patterns | Mediocre accuracy |
-| **XGBoost** | Gradient Boosting | Feature importance | High accuracy |
-| **Stacking Ensemble** | Meta-Learner | Best overall | Combined strengths of Neural Network and XG Boost |
+| **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple baseline |
+| **Neural Network** | Deep Learning | Complex patterns | Improved accuracy with deep learning |
+| **XGBoost** | Gradient Boosting | Feature importance | High accuracy with explainability |
+| **Stacking Ensemble** | Meta-Learner | **Best overall** | **Combines strengths of NN and XGBoost** |
 
 ### Metrics Tracked
 - **Precision:** False positive control
