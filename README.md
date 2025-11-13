@@ -110,10 +110,10 @@ DSA4263/
 │      ├── 2_EDA_Hypotheses.py       # Data exploration dashboard
 │      ├── 3_Feature_Engineering_Hypotheses.py  # Feature analysis
 │      ├── 4_Logistic_Regression_Results.py     # LR model results
-│      ├── 5_Live_Fraud_Prediction.py           # Real-time predictions
-│      ├── 6_Network_Explorer.py                # Fraud network viz
-│      ├── 7_Model_Comparison.py                # Model performance
-│      └── 7_Stacking_Ensemble_Model.py         # Ensemble results
+│      ├── 5_Live_Fraud_Prediction.py           # Live predictions with XGBoost
+│      ├── 6_Network_Explorer.py                # Fraud network visualization
+│      ├── 7_Model_Comparison.py                # All models comparison
+│      └── 8_Stacking_Ensemble_Model.py         # Ensemble model results
 │   
 │
 ├── data/                              # Data directories
@@ -275,19 +275,50 @@ The app will open at `http://localhost:8501`
 - Confusion matrix visualization
 - ROC curve and PR curve comparisons
 - Model interpretation for fraud detection
+- "How to read this plot" sections for clarity
+- Displays precomputed plots from `plots/` directory
+
+#### **XGBoost Results** (`5_XGBoost_Results.py`)
+- Gradient boosting model performance metrics
+- Confusion matrix and performance evaluation
+- Feature importance analysis
+- ROC and PR curve visualizations
+- Model interpretation and predictions
 - Displays precomputed plots from `plots/` directory
 
 #### **Neural Network Results** (`6_Neural_Network_Results.py`)
 - Deep learning model performance metrics
 - Training history and convergence analysis
+- Standard feature importance vs. SHAP feature importance
 - Confusion matrix and performance curves
 - Complex pattern capture validation
+- "How to read this plot" explanations
 - Displays precomputed plots from `plots/` directory
 
+#### **Stacking Ensemble Model** (`7_Stacking_Ensemble_Model.py`)
+- Best-performing ensemble combining multiple base models
+- Performance comparison: Ensemble vs. individual models (e.g., 1.75x better than Neural Network)
+- Individual model contributions analysis
+- Meta-learner results and effectiveness
+- "How to read this plot" interpretability sections
+- Displays precomputed plots from `plots/` directory
+
+#### **Model Comparison** (`8_Model_Comparison.py`)
+- Side-by-side performance metrics for all four models
+- Comprehensive metrics table (F1, PR-AUC, ROC-AUC, etc.)
+- Stacking Ensemble highlighted as best performing
+- Model selection guidance with metric-based justification
+- Loads metrics automatically from all model result files
+
 #### **Live Fraud Prediction** (`5_Live_Fraud_Prediction.py`)
-- Interactive transaction input form (coming soon)
-- Real-time fraud probability prediction
-- Model confidence scores and explanations
+- Real-time fraud probability predictions using XGBoost model
+- Two modes: sample dataset or CSV file upload
+- Batch prediction on multiple transactions
+- Risk classification (High/Medium/Low)
+- Results table with fraud probability and risk level
+- Summary statistics by risk level
+- CSV export of predictions
+- Complete feature set (56 engineered features)
 
 #### **Network Explorer** (`6_Network_Explorer.py`)
 - Interactive fraud network visualization
@@ -295,19 +326,6 @@ The app will open at `http://localhost:8501`
 - Dataset selection (with/without merchants, various downsampling ratios)
 - Graph analytics to identify fraud patterns
 - Memory-efficient data loading with cache clearing option
-
-#### **Model Comparison** (`7_Model_Comparison.py`)
-- Side-by-side performance metrics for all models
-- Overall model performance summary
-- Model selection guidance
-- Displays precomputed plots from `plots/` directory
-
-#### **Stacking Ensemble Model** (`7_Stacking_Ensemble_Model.py`)
-- Ensemble model combining multiple base models
-- Individual model contributions analysis
-- Performance comparison: Ensemble vs. individual models
-- Meta-learner results and effectiveness
-- Displays precomputed plots from `plots/` directory
 
 ---
 
@@ -317,10 +335,10 @@ The project implements and compares four different ML approaches:
 
 | Model | Type | Best Use Case | Key Metric |
 |-------|------|---------------|-----------|
-| **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple, but poor accuracy |
-| **Neural Network** | Deep Learning | Complex patterns | Mediocre accuracy |
-| **XGBoost** | Gradient Boosting | Feature importance | High accuracy |
-| **Stacking Ensemble** | Meta-Learner | Best overall | Combined strengths of Neural Network and XG Boost |
+| **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple baseline |
+| **Neural Network** | Deep Learning | Complex patterns | Improved accuracy with deep learning |
+| **XGBoost** | Gradient Boosting | Feature importance | High accuracy with explainability |
+| **Stacking Ensemble** | Meta-Learner | **Best overall** | **Combines strengths of NN and XGBoost** |
 
 ### Metrics Tracked
 - **Precision:** False positive control
