@@ -140,6 +140,7 @@ DSA4263/
 ├── docker-compose.yml                 # Docker compose setup
 ├── .dockerignore                      # Docker build exclusions
 ├── setup-docker-data.sh              # Data preparation script
+├── run_notebooks.sh                  # Automated notebook execution script
 ├── requirements.txt                   # Python dependencies
 └── README.md                          # This file
 ```
@@ -231,15 +232,45 @@ The notebook workflow is organized sequentially for a complete development pipel
 
 ### Running Notebooks
 
-**Option 1: Jupyter Lab**
+You have three options to run the notebooks:
+
+**Option 1: Run All Notebooks Automatically (Recommended for First Time)**
+```bash
+# Install dependencies first (if not done already)
+pip install -r requirements.txt
+
+# Execute entire pipeline in correct order
+chmod +x run_notebooks.sh
+./run_notebooks.sh
+```
+This script will:
+1. Run all notebooks sequentially (0_EDA → 1a_train_test_val_split → 1b_Resampling → Feature Engineering → Models)
+2. Execute the feature engineering Python script
+3. Train all models (Logistic Regression, Neural Network, XGBoost, Ensemble)
+4. Generate all necessary outputs for the Streamlit app
+
+⚠️ **Note:** 
+- This can take a significant amount of time (30+ minutes depending on your machine)
+- Requires `jupyter` and `nbconvert` (included in requirements.txt)
+- If you encounter errors, you can run notebooks individually (see Option 2)
+
+**Option 2: Run Notebooks Manually in Jupyter Lab**
 ```bash
 jupyter lab
 ```
-Navigate to `notebooks/` and open desired notebook.
+Navigate to `notebooks/` and run notebooks in this order:
+1. `0_EDA.ipynb` - Exploratory Data Analysis
+2. `1a_train_test_val_split.ipynb` - Data Splitting
+3. `1b_Resampling.ipynb` - Class Imbalance Handling
+4. `2_Feature_Engineering_Pipeline.py` - Feature Engineering (run as Python script)
+5. `3_Logistic_Regression.ipynb` - Baseline Model
+6. `4_Neural_Network.ipynb` - Deep Learning Model
+7. `5_XGBoost.ipynb` - Gradient Boosting Model
+8. `6_Ensemble_Model.ipynb` - Stacking Ensemble
 
-**Option 2: VS Code**
+**Option 3: Run in VS Code**
 - Install Jupyter extension in VS Code
-- Open `.ipynb` files directly and run cells
+- Open `.ipynb` files directly and run cells in the order listed above
 
 ---
 
