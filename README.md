@@ -109,11 +109,13 @@ DSA4263/
 │   └── pages/
 │      ├── 2_EDA_Hypotheses.py       # Data exploration dashboard
 │      ├── 3_Feature_Engineering_Hypotheses.py  # Feature analysis
-│      ├── 4_Logistic_Regression_Results.py     # LR model results
-│      ├── 5_Live_Fraud_Prediction.py           # Live predictions with XGBoost
-│      ├── 6_Network_Explorer.py                # Fraud network visualization
-│      ├── 7_Model_Comparison.py                # All models comparison
-│      └── 8_Stacking_Ensemble_Model.py         # Ensemble model results
+│      ├── 4_Network_Explorer.py                # Fraud network visualization
+│      ├── 5_Logistic_Regression_Results.py     # LR model results
+│      ├── 6_XGBoost_Results.py                 # XGBoost model results
+│      ├── 7_Neural_Network_Results.py          # Neural Network results
+│      ├── 8_Stacking_Ensemble_Model.py         # Ensemble model results
+│      ├── 9_Model_Comparison.py                # All models comparison
+│      └── 10_Live_Fraud_Prediction.py          # Live predictions with XGBoost
 │   
 │
 ├── data/                              # Data directories
@@ -270,7 +272,29 @@ The app will open at `http://localhost:8501`
 - Engineering approach effectiveness demonstration
 - Displays precomputed plots from `plots/` directory
 
-#### **Logistic Regression Results** (`4_Logistic_Regression_Results.py`)
+#### **EDA Hypotheses** (`2_EDA_Hypotheses.py`)
+- Visual validation of key data hypotheses
+- Transaction type fraud concentration analysis
+- Transaction amount patterns for fraud vs. legitimate
+- Top senders analysis
+- Multicollinearity detection using VIF (Variance Inflation Factor)
+- Displays precomputed plots from `plots/` directory
+
+#### **Feature Engineering Hypotheses** (`3_Feature_Engineering_Hypotheses.py`)
+- Visual validation of feature engineering decisions
+- Feature importance analysis
+- Feature correlation and relationship visualization
+- Engineering approach effectiveness demonstration
+- Displays precomputed plots from `plots/` directory
+
+#### **Network Explorer** (`4_Network_Explorer.py`)
+- Interactive fraud network visualization
+- Node connections between accounts and merchants
+- Dataset selection (with/without merchants, various downsampling ratios)
+- Graph analytics to identify fraud patterns
+- Memory-efficient data loading with cache clearing option
+
+#### **Logistic Regression Results** (`5_Logistic_Regression_Results.py`)
 - Baseline model performance metrics (F1-score, PR-AUC, ROC-AUC)
 - Confusion matrix visualization
 - ROC curve and PR curve comparisons
@@ -278,15 +302,16 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" sections for clarity
 - Displays precomputed plots from `plots/` directory
 
-#### **XGBoost Results** (`5_XGBoost_Results.py`)
+#### **XGBoost Results** (`6_XGBoost_Results.py`)
 - Gradient boosting model performance metrics
 - Confusion matrix and performance evaluation
 - Feature importance analysis
 - ROC and PR curve visualizations
 - Model interpretation and predictions
+- "How to read this plot" explanations
 - Displays precomputed plots from `plots/` directory
 
-#### **Neural Network Results** (`6_Neural_Network_Results.py`)
+#### **Neural Network Results** (`7_Neural_Network_Results.py`)
 - Deep learning model performance metrics
 - Training history and convergence analysis
 - Standard feature importance vs. SHAP feature importance
@@ -295,7 +320,7 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" explanations
 - Displays precomputed plots from `plots/` directory
 
-#### **Stacking Ensemble Model** (`7_Stacking_Ensemble_Model.py`)
+#### **Stacking Ensemble Model** (`8_Stacking_Ensemble_Model.py`)
 - Best-performing ensemble combining multiple base models
 - Performance comparison: Ensemble vs. individual models (e.g., 1.75x better than Neural Network)
 - Individual model contributions analysis
@@ -303,14 +328,14 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" interpretability sections
 - Displays precomputed plots from `plots/` directory
 
-#### **Model Comparison** (`8_Model_Comparison.py`)
+#### **Model Comparison** (`9_Model_Comparison.py`)
 - Side-by-side performance metrics for all four models
 - Comprehensive metrics table (F1, PR-AUC, ROC-AUC, etc.)
 - Stacking Ensemble highlighted as best performing
 - Model selection guidance with metric-based justification
 - Loads metrics automatically from all model result files
 
-#### **Live Fraud Prediction** (`5_Live_Fraud_Prediction.py`)
+#### **Live Fraud Prediction** (`10_Live_Fraud_Prediction.py`)
 - Real-time fraud probability predictions using XGBoost model
 - Two modes: sample dataset or CSV file upload
 - Batch prediction on multiple transactions
@@ -319,13 +344,6 @@ The app will open at `http://localhost:8501`
 - Summary statistics by risk level
 - CSV export of predictions
 - Complete feature set (56 engineered features)
-
-#### **Network Explorer** (`6_Network_Explorer.py`)
-- Interactive fraud network visualization
-- Node connections between accounts and merchants
-- Dataset selection (with/without merchants, various downsampling ratios)
-- Graph analytics to identify fraud patterns
-- Memory-efficient data loading with cache clearing option
 
 ---
 
