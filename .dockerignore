@@ -1,5 +1,9 @@
-# Ignore all data directories (will be mounted as volume)
+# Ignore all data directories (will be mounted as volume or extracted from zip)
 data/
+data-docker/
+
+# Keep the data-docker.zip file (needed for extraction)
+!data-docker.zip
 
 # Ignore all models directories (will be mounted as volume)
 models/

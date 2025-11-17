@@ -153,8 +153,3 @@ st.markdown("""
 - SHAP values provide interpretable insights into model decisions
 """)
 
-st.divider()
-
-# Footer
-st.markdown("---")
-st.markdown("*Model trained using TensorFlow/Keras on the financial fraud detection dataset*")

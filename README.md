@@ -138,7 +138,9 @@ DSA4263/
 │
 ├── Dockerfile                         # Docker configuration
 ├── docker-compose.yml                 # Docker compose setup
+├── docker-entrypoint.sh              # Docker entrypoint script (extracts data)
 ├── .dockerignore                      # Docker build exclusions
+├── data-docker.zip                   # Compressed data for Docker (343MB)
 ├── setup-docker-data.sh              # Data preparation script
 ├── run_notebooks.sh                  # Automated notebook execution script
 ├── requirements.txt                   # Python dependencies
@@ -403,33 +405,76 @@ The project implements and compares four different ML approaches:
 
 ## 🐳 Docker Deployment
 
-Deploy the Streamlit app in a containerized environment.
+Deploy the Streamlit app in a containerized environment. You have **two options** for handling data:
 
-### Quick Start with Docker Compose
-From root of project
-1. **Prepare data locally** (data files won't be committed to GitHub):
+### Option 1: Using Zip File (Recommended for Quick Start)
+
+This approach includes compressed data in the Docker image for easy distribution.
+
+**Build and run:**
+```bash
+# Use default docker-compose.yml (quick start with zip)
+docker-compose up --build
+
+# Or explicitly use the dev file
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+**How it works:** The `data-docker.zip` file (~343MB) is included in the Docker image. When the container starts, the entrypoint script automatically extracts it to the `data/` directory. On subsequent restarts, it detects the existing data and skips extraction.
+
+**Access the app:** `http://localhost:8501`
+
+---
+
+### Option 2: Using Volume Mount (For Full Pipeline)
+
+This approach mounts your local `data-docker` folder directly, useful when you've run all notebooks and want to use freshly generated data.
+
+**Prerequisites:**
+
+1. **Prepare data locally:**
    ```bash
    chmod +x setup-docker-data.sh
    ./setup-docker-data.sh
    ```
 
-2. **Build and run with Docker Compose:**
+2. **Build and run using production compose file:**
    ```bash
-   docker-compose up --build
+   docker-compose -f docker-compose.prod.yml up --build
    ```
 
-3. **Access the app:**
-   - Open `http://localhost:8501`
+**How it works:** Your local `data-docker/` folder is mounted directly into the container. Changes to local files are immediately reflected in the container.
 
-### Manual Docker Build (instead of step 2 and 3)
+**Access the app:** `http://localhost:8501`
 
+---
+
+### How the Entrypoint Script Works
+
+The `docker-entrypoint.sh` script automatically detects which data source to use:
+
+1. **If `data-docker` is mounted** (volume mount exists and contains files) → Use mounted data
+2. **Else if `data-docker.zip` exists** → Extract zip file
+3. **Else** → Show warning and continue
+
+This smart detection allows the same Docker image to work in both scenarios!
+
+### Manual Docker Build
+
+**Using zip file:**
 ```bash
-# Build image
 docker build -t fraud-detection:latest .
-
-# Run container
 docker run -p 8501:8501 \
-  -v $(pwd)/data-docker:/app/data \
+  -v $(pwd)/models:/app/models \
+  -v $(pwd)/plots:/app/plots \
+  fraud-detection:latest
+```
+
+**Using volume mount:**
+```bash
+docker build -t fraud-detection:latest .
+docker run -p 8501:8501 \
+  -v $(pwd)/data-docker:/app/data-docker \
   -v $(pwd)/models:/app/models \
   -v $(pwd)/plots:/app/plots \
   fraud-detection:latest
@@ -438,18 +483,51 @@ docker run -p 8501:8501 \
 ### Docker Configuration Details
 
 - **Base Image:** Python 3.11 slim
+- **Data Handling:** Compressed zip file extracted at container startup
+- **Entrypoint Script:** `docker-entrypoint.sh` handles data extraction
 - **Memory Limit:** 4GB (configurable in `docker-compose.yml`)
 - **Volume Mounts:**
-  - `data-docker/`: Feature-engineered datasets
+  - `models/`: Trained ML models
   - `plots/`: Precomputed visualizations
-- **Excluded from Docker Build:** Large raw datasets (see `.dockerignore`)
+- **Excluded from Docker Build:** Raw data files, notebooks (see `.dockerignore`)
 
-### Data Preparation Script
+### Why Two Options?
 
-The `setup-docker-data.sh` script:
-- Copies essential feature-engineered datasets to `data-docker/`
-- Excludes large raw data files to keep image size manageable
-- Runs locally to avoid GitHub file size limits
+**Benefits of Option 1 (Zip File - Quick Start):**
+- ✅ GitHub friendly: Avoids large file errors when pushing
+- ✅ Efficient storage: Compressed data (~343MB) vs uncompressed (~1GB+)
+- ✅ Self-contained: Data bundled within the image, no external dependencies
+- ✅ Reproducible: Same data guaranteed across all container instances
+- ✅ Simple deployment: One `docker-compose up` command
+- ✅ Best for: Distribution, sharing, quick demos
+
+**Benefits of Option 2 (Volume Mount - Full Pipeline):**
+- ✅ Live updates: Changes to local files immediately reflected
+- ✅ Pipeline integration: Use freshly generated data from notebooks
+- ✅ Testing: Validate model performance with latest data
+- ✅ Production workflow: Mirror real-world data refresh scenarios
+- ✅ Best for: After running notebooks, testing with new data
+
+### Data Preparation Scripts
+
+**For contributors/developers who need to regenerate the data:**
+
+**`setup-docker-data.sh`:**
+- Checks if feature-engineered data exists (exits with helpful error if missing)
+- Copies essential feature-engineered datasets from `data/` to `data-docker/`
+- Includes only test, validation, and downsampled train datasets
+- Excludes large raw data files to keep size manageable
+- Run this after executing all notebooks to prepare data for Docker
+
+**`create-docker-zip.sh`:**
+- **For local (non-Docker) use:** Extracts `data-docker.zip` to set up the `data-docker/` directory
+- Useful if you downloaded the zip from GitHub and want to run Streamlit locally without Docker
+- Checks if zip file exists before extraction
+- **Not needed for Docker deployment** - the docker-entrypoint.sh handles extraction automatically
+
+**Note:** 
+- For Docker users: Just run `docker-compose up --build` - no manual extraction needed
+- For local development: Run `./create-docker-zip.sh` to extract data, then `streamlit run src/app.py`
 
 ---
 

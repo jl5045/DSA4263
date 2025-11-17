@@ -6,7 +6,8 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      # Only mount models and plots (data extracted from zip)
+      # Mount data-docker directory directly for full pipeline
+      - ./data-docker:/app/data-docker
       - ./models:/app/models
       - ./plots:/app/plots
     environment:
@@ -15,7 +16,7 @@ services:
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_CLIENT_LOGGER_LEVEL=info
       - STREAMLIT_LOGGER_LEVEL=info
-    container_name: dsa4263-fraud-detection
+    container_name: dsa4263-fraud-detection-prod
     mem_limit: 4g
     memswap_limit: 4g
     cpus: 2

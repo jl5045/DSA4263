@@ -27,4 +27,5 @@ echo "Data directory size:"
 du -sh data-docker/
 
 echo ""
-echo "You can now run: docker-compose up --build"
+echo "To create the zip file for Docker, run:"
+echo "  ./create-docker-zip.sh"
