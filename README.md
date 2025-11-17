@@ -281,10 +281,45 @@ Navigate to `notebooks/` and run notebooks in this order:
 
 The Streamlit app provides an interactive dashboard for exploring results and making predictions.
 
-### Starting the App
-**Note** If you did not run the full pipeline, please unzip [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=sharing) into the root of the repo which will create the /data folder without running the whole pipeline. (this is more for local development which is not recommended)
+### Running the App
+
+**Recommended: Docker Deployment (Easiest)**
+
+The simplest way to run the Streamlit app is using Docker, which handles all data and dependencies automatically:
 
 ```bash
+# Download data-docker.zip from the link at the top of this README
+# Place it in the repository root directory (keep it as a .zip file)
+
+# Run the application
+docker-compose up --build
+```
+
+The app will open at `http://localhost:8501`
+
+**No additional setup needed** - Docker automatically extracts the data and configures everything!
+
+See the [Docker Deployment](#-docker-deployment) section below for more details and advanced options.
+
+---
+
+**Alternative: Local Development (Advanced)**
+
+For local development without Docker:
+
+⚠️ **Prerequisites:**
+- If you **have not** run the full notebook pipeline, you must manually extract the data:
+  1. Download [data-docker.zip](https://drive.google.com/file/d/1HY8p5UdtyHxWLUCaonU4tMWFh3wsO4Ig/view?usp=sharing)
+  2. Extract it in the repository root: `unzip data-docker.zip`
+  3. This creates the `data-docker/` folder with all necessary datasets
+
+- If you **have** run the full pipeline, the `data/` directory already exists with feature-engineered datasets
+
+```bash
+# Ensure dependencies are installed
+pip install -r requirements.txt
+
+# Run Streamlit locally
 streamlit run src/app.py
 ```
 
@@ -292,7 +327,7 @@ The app will open at `http://localhost:8501`
 
 ### Available Pages
 
-#### **EDA Hypotheses** (`2_EDA_Hypotheses.py`)
+#### **Page 2: EDA Hypotheses** (`2_EDA_Hypotheses.py`)
 - Visual validation of key data hypotheses
 - Transaction type fraud concentration analysis
 - Transaction amount patterns for fraud vs. legitimate
@@ -300,36 +335,21 @@ The app will open at `http://localhost:8501`
 - Multicollinearity detection using VIF (Variance Inflation Factor)
 - Displays precomputed plots from `plots/` directory
 
-#### **Feature Engineering Hypotheses** (`3_Feature_Engineering_Hypotheses.py`)
+#### **Page 3: Feature Engineering Hypotheses** (`3_Feature_Engineering_Hypotheses.py`)
 - Visual validation of feature engineering decisions
 - Feature importance analysis
 - Feature correlation and relationship visualization
 - Engineering approach effectiveness demonstration
 - Displays precomputed plots from `plots/` directory
 
-#### **EDA Hypotheses** (`2_EDA_Hypotheses.py`)
-- Visual validation of key data hypotheses
-- Transaction type fraud concentration analysis
-- Transaction amount patterns for fraud vs. legitimate
-- Top senders analysis
-- Multicollinearity detection using VIF (Variance Inflation Factor)
-- Displays precomputed plots from `plots/` directory
-
-#### **Feature Engineering Hypotheses** (`3_Feature_Engineering_Hypotheses.py`)
-- Visual validation of feature engineering decisions
-- Feature importance analysis
-- Feature correlation and relationship visualization
-- Engineering approach effectiveness demonstration
-- Displays precomputed plots from `plots/` directory
-
-#### **Network Explorer** (`4_Network_Explorer.py`)
+#### **Page 4: Network Explorer** (`4_Network_Explorer.py`)
 - Interactive fraud network visualization
 - Node connections between accounts and merchants
 - Dataset selection (with/without merchants, various downsampling ratios)
 - Graph analytics to identify fraud patterns
 - Memory-efficient data loading with cache clearing option
 
-#### **Logistic Regression Results** (`5_Logistic_Regression_Results.py`)
+#### **Page 5: Logistic Regression Results** (`5_Logistic_Regression_Results.py`)
 - Baseline model performance metrics (F1-score, PR-AUC, ROC-AUC)
 - Confusion matrix visualization
 - ROC curve and PR curve comparisons
@@ -337,7 +357,7 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" sections for clarity
 - Displays precomputed plots from `plots/` directory
 
-#### **XGBoost Results** (`6_XGBoost_Results.py`)
+#### **Page 6: XGBoost Results** (`6_XGBoost_Results.py`)
 - Gradient boosting model performance metrics
 - Confusion matrix and performance evaluation
 - Feature importance analysis
@@ -346,7 +366,7 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" explanations
 - Displays precomputed plots from `plots/` directory
 
-#### **Neural Network Results** (`7_Neural_Network_Results.py`)
+#### **Page 7: Neural Network Results** (`7_Neural_Network_Results.py`)
 - Deep learning model performance metrics
 - Training history and convergence analysis
 - Standard feature importance vs. SHAP feature importance
@@ -355,7 +375,7 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" explanations
 - Displays precomputed plots from `plots/` directory
 
-#### **Stacking Ensemble Model** (`8_Stacking_Ensemble_Model.py`)
+#### **Page 8: Stacking Ensemble Model** (`8_Stacking_Ensemble_Model.py`)
 - Best-performing ensemble combining multiple base models
 - Performance comparison: Ensemble vs. individual models (e.g., 1.75x better than Neural Network)
 - Individual model contributions analysis
@@ -363,14 +383,22 @@ The app will open at `http://localhost:8501`
 - "How to read this plot" interpretability sections
 - Displays precomputed plots from `plots/` directory
 
-#### **Model Comparison** (`9_Model_Comparison.py`)
+#### **Page 9: Model Comparison** (`9_Model_Comparison.py`)
 - Side-by-side performance metrics for all four models
 - Comprehensive metrics table (F1, PR-AUC, ROC-AUC, etc.)
-- Stacking Ensemble highlighted as best performing
+- XGBoost highlighted as best single model
 - Model selection guidance with metric-based justification
 - Loads metrics automatically from all model result files
 
-#### **Live Fraud Prediction** (`10_Live_Fraud_Prediction.py`)
+#### **Page 10: Explainable AI** (`10_Explainable_AI.py`)
+- SHAP-based model explainability for XGBoost
+- Global feature importance (bar plot and beeswarm plot)
+- Individual prediction explanations (waterfall and force plots)
+- Interactive HTML visualizations
+- Key insights and interpretation guidance
+- Displays SHAP plots from `plots/` directory
+
+#### **Page 11: Live Fraud Prediction** (`11_Live_Fraud_Prediction.py`)
 - Real-time fraud probability predictions using XGBoost model
 - Two modes: sample dataset or CSV file upload
 - Batch prediction on multiple transactions
