@@ -282,6 +282,7 @@ Navigate to `notebooks/` and run notebooks in this order:
 The Streamlit app provides an interactive dashboard for exploring results and making predictions.
 
 ### Starting the App
+**Note** If you did not run the full pipeline, please unzip [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=sharing) into the root of the repo which will create the /data folder without running the whole pipeline. (this is more for local development which is not recommended)
 
 ```bash
 streamlit run src/app.py
