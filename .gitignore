@@ -1,6 +1,7 @@
 venv/
 data/*
 data-docker/*
+data-docker.zip
 notebooks/__pycache__/
 lib/
 .DS_Store

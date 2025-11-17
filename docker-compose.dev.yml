@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  streamlit:
+  streamlit-dev:
     build: .
     ports:
       - "8501:8501"
@@ -15,7 +15,7 @@ services:
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_CLIENT_LOGGER_LEVEL=info
       - STREAMLIT_LOGGER_LEVEL=info
-    container_name: dsa4263-fraud-detection
+    container_name: dsa4263-fraud-detection-dev
     mem_limit: 4g
     memswap_limit: 4g
     cpus: 2

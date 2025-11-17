@@ -178,8 +178,3 @@ else:
     st.error(f"Metrics file not found at {metrics_path}. Please run the XGBoost training notebook first.")
     st.info("Expected file: `plots/xgboost_metrics.csv`")
 
-st.divider()
-
-# Footer
-st.markdown("---")
-st.markdown("*Model trained using XGBoost on the financial fraud detection dataset*")
