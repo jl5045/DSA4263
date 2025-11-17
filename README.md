@@ -418,8 +418,8 @@ The project implements and compares four different ML approaches:
 |-------|------|---------------|-----------|
 | **Logistic Regression** | Linear | Baseline, interpretability | Fast, simple baseline |
 | **Neural Network** | Deep Learning | Complex patterns | Improved accuracy with deep learning |
-| **XGBoost** | Gradient Boosting | Feature importance | High accuracy with explainability |
-| **Stacking Ensemble** | Meta-Learner | **Best overall** | **Combines strengths of NN and XGBoost** |
+| **XGBoost** | Gradient Boosting | **Best single model** | **High PR-AUC with explainability (SHAP)** |
+| **Stacking Ensemble** | Meta-Learner | Resilient performance | Combines strengths for evolving fraud patterns |
 
 ### Metrics Tracked
 - **Precision:** False positive control
@@ -668,10 +668,17 @@ model.fit(X_train.drop('isFraud', axis=1), X_train['isFraud'])
 
 Results are saved in the `plots/` and `models/` directories:
 
-- `plots/logistic_regression_metrics.csv` - LR performance
-- `plots/neural_network_metrics.csv` - NN performance
-- `plots/stacking_ensemble_metrics.csv` - Ensemble performance
-- `plots/fraud_network.html` - Interactive network visualization
+- `plots/logistic_regression_metrics.csv` - Logistic Regression performance
+- `plots/neural_network_metrics.csv` - Neural Network performance
+- `plots/xgboost_metrics.csv` - XGBoost performance
+- `plots/stacking_ensemble_metrics.csv` - Stacking Ensemble performance
+- `plots/xgb_shap_*.png` - SHAP explainability plots for XGBoost
+- `plots/xgb_shap_force_fraud_example.html` - Interactive SHAP force plot
+- `plots/fraud_network.html` - Interactive fraud network visualization
+- `models/XGB/best_xgb_1to5_all.json` - Best XGBoost model (1:5 ratio)
+- `models/XGB/best_xgb_1to10_all.json` - Best XGBoost model (1:10 ratio)
+- `models/NN/NN_1to5_all.keras` - Neural Network model (1:5 ratio)
+- `models/NN/NN_1to10_all.keras` - Neural Network model (1:10 ratio)
 - `models/validation_results_summary.csv` - Cross-validation summary
 
 ---
