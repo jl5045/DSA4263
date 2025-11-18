@@ -28,17 +28,17 @@ echo ""
 echo "Phase 1: Data Preparation"
 echo "-------------------------------------------"
 
-echo "[1/7] Running EDA (0_EDA.ipynb)..."
+echo "[1/9] Running EDA (0_EDA.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 0_EDA.ipynb
 echo "✓ EDA complete"
 echo ""
 
-echo "[2/7] Running Train/Test/Val Split (1a_train_test_val_split.ipynb)..."
+echo "[2/9] Running Train/Test/Val Split (1a_train_test_val_split.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 1a_train_test_val_split.ipynb
 echo "✓ Data splitting complete"
 echo ""
 
-echo "[3/7] Running Resampling (1b_Resampling.ipynb)..."
+echo "[3/9] Running Resampling (1b_Resampling.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 1b_Resampling.ipynb
 echo "✓ Resampling complete"
 echo ""
@@ -47,7 +47,7 @@ echo ""
 echo "Phase 2: Feature Engineering"
 echo "-------------------------------------------"
 
-echo "[4/7] Running Feature Engineering Pipeline (2_Feature_Engineering_Pipeline.py)..."
+echo "[4/9] Running Feature Engineering Pipeline (2_Feature_Engineering_Pipeline.py)..."
 python 2_Feature_Engineering_Pipeline.py
 echo "✓ Feature engineering complete"
 echo ""
@@ -56,24 +56,29 @@ echo ""
 echo "Phase 3: Model Training"
 echo "-------------------------------------------"
 
-echo "[5/7] Running Logistic Regression (3_Logistic_Regression.ipynb)..."
+echo "[5/9] Running Logistic Regression (3_Logistic_Regression.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 3_Logistic_Regression.ipynb
 echo "✓ Logistic Regression complete"
 echo ""
 
-echo "[6/7] Running Neural Network (4_Neural_Network.ipynb)..."
+echo "[6/9] Running Neural Network (4_Neural_Network.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 4_Neural_Network.ipynb
 echo "✓ Neural Network complete"
 echo ""
 
-echo "[7/7] Running XGBoost (5_XGBoost.ipynb)..."
+echo "[7/9] Running XGBoost (5_XGBoost.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 5_XGBoost.ipynb
 echo "✓ XGBoost complete"
 echo ""
 
-echo "[8/8] Running Ensemble Model (6_Ensemble_Model.ipynb)..."
+echo "[8/9] Running Ensemble Model (6_Ensemble_Model.ipynb)..."
 jupyter nbconvert --to notebook --execute --inplace 6_Ensemble_Model.ipynb
 echo "✓ Ensemble Model complete"
+echo ""
+
+echo "[9/9] Running Explainable AI Model (7_Explainable_AI_Model.ipynb)..."
+jupyter nbconvert --to notebook --execute --inplace 7_Explainable_AI_Model.ipynb
+echo "✓ Explainable AI Model complete"
 echo ""
 
 # Done

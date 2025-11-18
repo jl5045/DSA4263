@@ -439,7 +439,7 @@ Deploy the Streamlit app in a containerized environment. You have **two options*
 
 ### Option 1: Using Zip File (Recommended for Quick Start)
 
-This approach includes compressed data in the Docker image for easy distribution.
+This approach includes compressed data in the Docker image for easy distribution. Make sure you inserted data-docker.zip in root before beginning.
 
 **Build and run:**
 ```bash
@@ -458,7 +458,7 @@ docker-compose -f docker-compose.dev.yml up --build
 
 ### Option 2: Using Volume Mount (For Full Pipeline)
 
-This approach mounts your local `data-docker` folder directly, useful when you've run all notebooks and want to use freshly generated data.
+This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data.
 
 **Prerequisites:**
 
@@ -473,7 +473,7 @@ This approach mounts your local `data-docker` folder directly, useful when you'v
    docker-compose -f docker-compose.prod.yml up --build
    ```
 
-**How it works:** Your local `data-docker/` folder is mounted directly into the container. Changes to local files are immediately reflected in the container.
+**How it works:** Selected folders from local `data/` sent to `data-docker/` which is sent to `data/` directory. On subsequent restarts, it detects the existing data and skips extraction.
 
 **Access the app:** `http://localhost:8501`
 
