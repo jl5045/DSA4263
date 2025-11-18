@@ -119,8 +119,8 @@ DSA4263/
 │      ├── 7_Neural_Network_Results.py          # Neural Network results
 │      ├── 8_Stacking_Ensemble_Model.py         # Ensemble model results
 │      ├── 9_Model_Comparison.py                # All models comparison
-│      └── 10_Live_Fraud_Prediction.py          # Live predictions with XGBoost
-│   
+│      ├── 10_Explainable_AI.py                 # Explainable AI of XGBoost
+│      └── 11_Live_Fraud_Prediction.py          # Live predictions with XGBoost
 │
 ├── data/                              # Data directories
 │   ├── raw/                           # Original datasets
