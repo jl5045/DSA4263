@@ -7,6 +7,7 @@ Data: [Kaggle Mobile Transaction Dataset](https://www.kaggle.com/datasets/ealaxi
 BEFORE YOU START, PLEASE DOWNLOAD THE FOLLOWING .ZIP FILE AND INSERT INTO ROOT OF DIRECTORY (AS A .ZIP FILE): [data-docker.zip](https://drive.google.com/file/d/1HY8p5UdtyHxWLUCaonU4tMWFh3wsO4Ig/view?usp=sharing) 
 
 IF YOU WANT TO JUST VIEW THE FULL DATA AND NOT RUN THE PIPELINE, PLEASE DOWNLOAD AND UNZIP THE FOLLOWING INTO THE ROOT OF THE DIRECTORY: [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link)
+
 ---
 
 ## 📋 Table of Contents
