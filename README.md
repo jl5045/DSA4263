@@ -461,7 +461,7 @@ docker-compose -f docker-compose.dev.yml up --build
 
 ### Option 2: Using Volume Mount (For Full Pipeline)
 
-This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data.
+This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data. (download [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link) )
 
 **Prerequisites:**
 
@@ -490,28 +490,6 @@ The `docker-entrypoint.sh` script automatically detects which data source to use
 2. **Else if `data-docker.zip` exists** → Extract zip file
 3. **Else** → Show warning and continue
 
-This smart detection allows the same Docker image to work in both scenarios!
-
-### Manual Docker Build
-
-**Using zip file:**
-```bash
-docker build -t fraud-detection:latest .
-docker run -p 8501:8501 \
-  -v $(pwd)/models:/app/models \
-  -v $(pwd)/plots:/app/plots \
-  fraud-detection:latest
-```
-
-**Using volume mount:**
-```bash
-docker build -t fraud-detection:latest .
-docker run -p 8501:8501 \
-  -v $(pwd)/data-docker:/app/data-docker \
-  -v $(pwd)/models:/app/models \
-  -v $(pwd)/plots:/app/plots \
-  fraud-detection:latest
-```
 
 ### Docker Configuration Details
 
@@ -540,27 +518,6 @@ docker run -p 8501:8501 \
 - ✅ Testing: Validate model performance with latest data
 - ✅ Production workflow: Mirror real-world data refresh scenarios
 - ✅ Best for: After running notebooks, testing with new data
-
-### Data Preparation Scripts
-
-**For contributors/developers who need to regenerate the data:**
-
-**`setup-docker-data.sh`:**
-- Checks if feature-engineered data exists (exits with helpful error if missing)
-- Copies essential feature-engineered datasets from `data/` to `data-docker/`
-- Includes only test, validation, and downsampled train datasets
-- Excludes large raw data files to keep size manageable
-- Run this after executing all notebooks to prepare data for Docker
-
-**`create-docker-zip.sh`:**
-- **For local (non-Docker) use:** Extracts `data-docker.zip` to set up the `data-docker/` directory
-- Useful if you downloaded the zip from GitHub and want to run Streamlit locally without Docker
-- Checks if zip file exists before extraction
-- **Not needed for Docker deployment** - the docker-entrypoint.sh handles extraction automatically
-
-**Note:** 
-- For Docker users: Just run `docker-compose up --build` - no manual extraction needed
-- For local development: Run `./create-docker-zip.sh` to extract data, then `streamlit run src/app.py`
 
 ---
 
