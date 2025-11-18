@@ -461,7 +461,7 @@ docker-compose -f docker-compose.dev.yml up --build
 
 ### Option 2: Using Volume Mount (For Full Pipeline)
 
-This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data. (download [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link) )
+This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data. (download [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link) if data is not regenerated)
 
 **Prerequisites:**
 
