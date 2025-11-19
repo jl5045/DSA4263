@@ -4,7 +4,9 @@ A comprehensive machine learning solution for detecting fraudulent financial mob
 
 Data: [Kaggle Mobile Transaction Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
 
-PLEASE DOWNLOAD THE FOLLOWING BEFORE YOU START IF YOU WANT TO JUST VIEW THE FULL DATA AND NOT RUN THE PIPELINE. PLEASE DOWNLOAD AND UNZIP THE FOLLOWING INTO THE ROOT OF THE DIRECTORY: [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link)
+PLEASE DOWNLOAD AND UNZIP THE FOLLOWING BEFORE YOU START IF YOU WANT TO JUST VIEW THE FULL DATA AND NOT RUN THE PIPELINE: [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link)
+
+**Note:** Very important to do so if pipeline not ran to view networkx plots on streamlit
 
 THIS IS IMPT IF U WANT TO VIEW THE STREAMLIT NETWORKX VISUALISATION
 
