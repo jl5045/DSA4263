@@ -142,7 +142,6 @@ DSA4263/
 │
 ├── Dockerfile                         # Docker configuration
 ├── docker-compose.yml                 # Docker compose setup
-├── docker-entrypoint.sh              # Docker entrypoint script (extracts data)
 ├── .dockerignore                      # Docker build exclusions
 ├── data-docker.zip                   # Compressed data for Docker (343MB)
 ├── setup-docker-data.sh              # Data preparation script

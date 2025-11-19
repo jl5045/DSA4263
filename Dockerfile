@@ -24,9 +24,6 @@ COPY src/ ./src/
 # Copy the plots directory
 COPY plots/ ./plots/
 
-# Copy data-docker.zip file
-COPY data-docker.zip .
-
 # Copy and set up entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
