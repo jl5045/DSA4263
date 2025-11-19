@@ -4,9 +4,9 @@ A comprehensive machine learning solution for detecting fraudulent financial mob
 
 Data: [Kaggle Mobile Transaction Dataset](https://www.kaggle.com/datasets/ealaxi/paysim1)
 
-BEFORE YOU START, PLEASE DOWNLOAD THE FOLLOWING .ZIP FILE AND INSERT INTO ROOT OF DIRECTORY (AS A .ZIP FILE) FOR DOCKER RUN OF STREAMLIT APP: [data-docker.zip](https://drive.google.com/file/d/1HY8p5UdtyHxWLUCaonU4tMWFh3wsO4Ig/view?usp=sharing) 
+PLEASE DOWNLOAD THE FOLLOWING BEFORE YOU START IF YOU WANT TO JUST VIEW THE FULL DATA AND NOT RUN THE PIPELINE. PLEASE DOWNLOAD AND UNZIP THE FOLLOWING INTO THE ROOT OF THE DIRECTORY: [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link)
 
-IF YOU WANT TO JUST VIEW THE FULL DATA AND NOT RUN THE PIPELINE, PLEASE DOWNLOAD AND UNZIP THE FOLLOWING INTO THE ROOT OF THE DIRECTORY: [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link)
+THIS IS IMPT IF U WANT TO VIEW THE STREAMLIT NETWORKX VISUALISATION
 
 ---
 
@@ -144,7 +144,6 @@ DSA4263/
 ├── docker-compose.yml                 # Docker compose setup
 ├── docker-entrypoint.sh              # Docker entrypoint script (extracts data)
 ├── .dockerignore                      # Docker build exclusions
-├── data-docker.zip                   # Compressed data for Docker (343MB)
 ├── setup-docker-data.sh              # Data preparation script
 ├── run_notebooks.sh                  # Automated notebook execution script
 ├── requirements.txt                   # Python dependencies
@@ -291,7 +290,7 @@ The Streamlit app provides an interactive dashboard for exploring results and ma
 The simplest way to run the Streamlit app is using Docker, which handles all data and dependencies automatically:
 
 ```bash
-# Download data-docker.zip from the link at the top of this README
+# Download data.zip from the link at the top of this README
 # Place it in the repository root directory (keep it as a .zip file)
 
 # Run the application
@@ -440,28 +439,7 @@ The project implements and compares four different ML approaches:
 
 Deploy the Streamlit app in a containerized environment. You have **two options** for handling data:
 
-### Option 1: Using Zip File (Recommended for Quick Start)
-
-This approach includes compressed data in the Docker image for easy distribution. Make sure you inserted data-docker.zip in root before beginning.
-
-**Build and run:**
-```bash
-# Use default docker-compose.yml (quick start with zip)
-docker-compose up --build
-
-# Or explicitly use the dev file
-docker-compose -f docker-compose.dev.yml up --build
-```
-
-**How it works:** The `data-docker.zip` file (~343MB) is included in the Docker image. When the container starts, the entrypoint script automatically extracts it to the `data/` directory. On subsequent restarts, it detects the existing data and skips extraction.
-
-**Access the app:** `http://localhost:8501`
-
----
-
-### Option 2: Using Volume Mount (For Full Pipeline)
-
-This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data. (download [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link) if data is not regenerated)
+This approach mounts your local `data` folder directly, useful when you've run all notebooks and want to use freshly generated data. (download and unzip into root [data.zip](https://drive.google.com/file/d/1KOAAtgmr_Rtt8NkEEEa_dDN3yqgkiR7j/view?usp=drive_link) if data is not regenerated)
 
 **Prerequisites:**
 
@@ -479,45 +457,6 @@ This approach mounts your local `data` folder directly, useful when you've run a
 **How it works:** Selected folders from local `data/` sent to `data-docker/` which is sent to `data/` directory. On subsequent restarts, it detects the existing data and skips extraction.
 
 **Access the app:** `http://localhost:8501`
-
----
-
-### How the Entrypoint Script Works
-
-The `docker-entrypoint.sh` script automatically detects which data source to use:
-
-1. **If `data-docker` is mounted** (volume mount exists and contains files) → Use mounted data
-2. **Else if `data-docker.zip` exists** → Extract zip file
-3. **Else** → Show warning and continue
-
-
-### Docker Configuration Details
-
-- **Base Image:** Python 3.11 slim
-- **Data Handling:** Compressed zip file extracted at container startup
-- **Entrypoint Script:** `docker-entrypoint.sh` handles data extraction
-- **Memory Limit:** 4GB (configurable in `docker-compose.yml`)
-- **Volume Mounts:**
-  - `models/`: Trained ML models
-  - `plots/`: Precomputed visualizations
-- **Excluded from Docker Build:** Raw data files, notebooks (see `.dockerignore`)
-
-### Why Two Options?
-
-**Benefits of Option 1 (Zip File - Quick Start):**
-- ✅ GitHub friendly: Avoids large file errors when pushing
-- ✅ Efficient storage: Compressed data (~343MB) vs uncompressed (~1GB+)
-- ✅ Self-contained: Data bundled within the image, no external dependencies
-- ✅ Reproducible: Same data guaranteed across all container instances
-- ✅ Simple deployment: One `docker-compose up` command
-- ✅ Best for: Distribution, sharing, quick demos
-
-**Benefits of Option 2 (Volume Mount - Full Pipeline):**
-- ✅ Live updates: Changes to local files immediately reflected
-- ✅ Pipeline integration: Use freshly generated data from notebooks
-- ✅ Testing: Validate model performance with latest data
-- ✅ Production workflow: Mirror real-world data refresh scenarios
-- ✅ Best for: After running notebooks, testing with new data
 
 ---
 
