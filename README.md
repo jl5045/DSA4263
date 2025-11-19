@@ -292,8 +292,7 @@ The Streamlit app provides an interactive dashboard for exploring results and ma
 The simplest way to run the Streamlit app is using Docker, which handles all data and dependencies automatically:
 
 ```bash
-# Download data.zip from the link at the top of this README
-# Place it in the repository root directory (keep it as a .zip file)
+# Download data.zip from the link at the top of this README and unzip into root directory
 
 # Run the application
 docker-compose up --build
