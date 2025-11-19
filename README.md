@@ -236,6 +236,10 @@ The notebook workflow is organized sequentially for a complete development pipel
 - Performance comparison with individual models
 - Save results to `plots/stacking_ensemble_metrics.csv`
 
+#### 3e. **`7_XAI_for_XGBoost.ipynb`**
+- Explainable AI for XGBoost
+- Save results to `plots/`
+
 ### Running Notebooks
 
 You have three options to run the notebooks:
@@ -273,7 +277,8 @@ Navigate to `notebooks/` and run notebooks in this order:
 6. `4_Neural_Network.ipynb` - Deep Learning Model
 7. `5_XGBoost.ipynb` - Gradient Boosting Model
 8. `6_Ensemble_Model.ipynb` - Stacking Ensemble
-
+9. `7_XAI_for_XGBoost.ipynb` -Explainable AI for XGBoost
+    
 **Option 3: Run in VS Code**
 - Install Jupyter extension in VS Code
 - Open `.ipynb` files directly and run cells in the order listed above
@@ -292,7 +297,9 @@ The simplest way to run the Streamlit app is using Docker, which handles all dat
 
 ```bash
 # Download data.zip from the link at the top of this README and unzip into root directory
-
+# Prep data
+chmod +x setup-docker-data.sh
+./setup-docker-data.sh
 # Run the application
 docker-compose up --build
 ```
