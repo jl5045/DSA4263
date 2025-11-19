@@ -9,6 +9,7 @@ services:
       # Only mount models and plots (data extracted from zip)
       - ./models:/app/models
       - ./plots:/app/plots
+      - ./data-docker:/app/data
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0

@@ -26,6 +26,3 @@ echo "Data preparation complete!"
 echo "Data directory size:"
 du -sh data-docker/
 
-echo ""
-echo "To create the zip file for Docker, run:"
-echo "  ./create-docker-zip.sh"
