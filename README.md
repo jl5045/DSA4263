@@ -580,12 +580,15 @@ Results are saved in the `plots/` and `models/` directories:
 - `plots/stacking_ensemble_metrics.csv` - Stacking Ensemble performance
 - `plots/xgb_shap_*.png` - SHAP explainability plots for XGBoost
 - `plots/xgb_shap_force_fraud_example.html` - Interactive SHAP force plot
+- `plots/meta_shap_bar.png` - SHAP for explainable AI for XGBoost
+- `plots/meta_shap_beeswarm.png` - beeswarm for explainable AI for XGBoost
 - `plots/fraud_network.html` - Interactive fraud network visualization
 - `models/XGB/best_xgb_1to5_all.json` - Best XGBoost model (1:5 ratio)
 - `models/XGB/best_xgb_1to10_all.json` - Best XGBoost model (1:10 ratio)
 - `models/NN/NN_1to5_all.keras` - Neural Network model (1:5 ratio)
 - `models/NN/NN_1to10_all.keras` - Neural Network model (1:10 ratio)
 - `models/validation_results_summary.csv` - Cross-validation summary
+
 
 ---
 
