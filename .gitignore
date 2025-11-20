@@ -1,0 +1,8 @@
+venv/
+data/*
+data-docker/*
+data.zip
+notebooks/__pycache__/
+lib/
+.DS_Store
+.venv/
