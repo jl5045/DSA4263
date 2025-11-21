@@ -289,6 +289,11 @@ Navigate to `notebooks/` and run notebooks in this order:
 
 The Streamlit app provides an interactive dashboard for exploring results and making predictions.
 
+**Streamlit Video Demo (Click the following picture to watch the demo):**
+
+[<img width="1467" height="813" alt="Screenshot 2025-11-21 at 10 01 57 PM" src="https://github.com/user-attachments/assets/a0cf0d76-228a-4ef7-899f-f7d3ba516d8a" />](https://drive.google.com/file/d/19UfsFlCeW4TWTFEw4fp0SzXyJvvcxrz0/view?usp=sharing)
+
+
 ### Running the App
 
 **Recommended: Docker Deployment (Easiest)**
